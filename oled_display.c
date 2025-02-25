@@ -42,8 +42,11 @@ static on_state_change_ptr on_state_change;
 
 typedef struct {
   const char *state;
-  char ip[16];
-  double pos[N_AXIS];
+  #if ETHERNET_ENABLE || WIFI_ENABLE
+  char ip[30];
+  #endif //ETHERNET_ENABLE || WIFI_ENABLE
+  float pos[N_AXIS];
+  char pos_str[N_AXIS][STRLEN_COORDVALUE + 1];
   bool end_stop[N_AXIS];
 } oled_screen_t;
 
@@ -63,8 +66,14 @@ static void network_event (const char *interface, network_status_t status)
     if(on_event){
       on_event(interface, status);
     }
-    
-    report_info("network event");
+    if((status.changed.ap_started && status.flags.ap_started) || status.changed.ip_aquired) {
+
+        network_info_t *info;
+
+        if((info = networking.get_info(interface))) {
+          strcpy(screen1.ip, info->status.ip);
+        }
+    }
 }
 
 #endif //ETHERNET_ENABLE || WIFI_ENABLE
@@ -122,9 +131,48 @@ static void onStateChanged (sys_state_t state)
 }
 
 static void polling_task (void *data){
+  //add next polling
   task_add_delayed(polling_task, NULL, POLLING_DELAY);
+  //get endstop status
+  if(settings.status_report.pin_state) {
+    axes_signals_t lim_pin_state = limit_signals_merge(hal.limits.get_state());
+    uint_fast16_t idx = 0;
+
+    lim_pin_state.mask &= AXES_BITMASK;
+    while(lim_pin_state.mask && idx < 3) {
+      if(lim_pin_state.mask & 0x01){
+        screen1.end_stop[idx] = true;
+      } else {
+        screen1.end_stop[idx] = false;
+      }
+      report_info(screen1.end_stop[idx]? "1":"0");
+      idx++;
+      lim_pin_state.mask >>= 1;
+      
+    };
+    
+  }
+  //get positions
+  system_convert_array_steps_to_mpos(screen1.pos, sys.position);
+  for (uint8_t i = 0; i < N_AXIS; i++) {
+    if(settings.flags.report_inches){
+      strcpy(screen1.pos_str[i], ftoa(screen1.pos[i] * INCH_PER_MM, N_DECIMAL_COORDVALUE_INCH));
+    } else {
+      strcpy(screen1.pos_str[i], ftoa(screen1.pos[i], N_DECIMAL_COORDVALUE_MM));
+    }
+    
+    report_info((void *)screen1.pos_str[i]);
+  }
+
+  // state
   report_info((void *)screen1.state);
+
+  #if ETHERNET_ENABLE || WIFI_ENABLE
+  // ip
   report_info((void *)screen1.ip);
+  #endif //ETHERNET_ENABLE || WIFI_ENABLE
+
+  
 }
 
 void oled_display_init (void)
@@ -133,6 +181,7 @@ void oled_display_init (void)
     strcpy(screen1.ip, "0.0.0.0");
     memset(screen1.pos, 0, sizeof(screen1.pos));
     memset(screen1.end_stop, 0, sizeof(screen1.end_stop));
+    memset(screen1.pos_str, 0, sizeof(screen1.pos_str));
     // hook report options
     on_report_options = grbl.on_report_options;
     grbl.on_report_options = report_options;
