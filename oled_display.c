@@ -23,10 +23,14 @@
 #ifdef ARDUINO
 #include "../driver.h"
 #include "../grbl/hal.h"
+#include "../grbl/task.h"
 #else
 #include "driver.h"
 #include "grbl/hal.h"
+#include "grbl/task.h"
 #endif //ARDUINO
+
+#include "grbl/report.h"
 
 #if defined(OLED_DISPLAY_ENABLE)
 #include "oled_display.h"
@@ -44,8 +48,10 @@ static on_network_event_ptr on_event;
 
 static void network_event (const char *interface, network_status_t status)
 {
-    if(on_event)
+    if(on_event){
       on_event(interface, status);
+    }
+    report_info("network event");
 }
 
 #endif //ETHERNET_ENABLE || WIFI_ENABLE
@@ -64,12 +70,15 @@ static void report_options (bool newopt)
 
 static void onStateChanged (sys_state_t state)
 {
-    if(on_state_change)
+    if(on_state_change){
       on_state_change(state);
+    }
+    report_info("State changed");
 }
 
 static void polling_fn (void *data){
-
+  report_info("polling_fn");
+  task_add_delayed(polling_fn, NULL, 500);
 }
 
 void oled_display_init (void)
