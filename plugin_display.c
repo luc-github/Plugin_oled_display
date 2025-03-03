@@ -218,22 +218,23 @@ static void polling_task(void *data) {
 #endif //ETHERNET_ENABLE || WIFI_ENABLE
     
     // Machine state
-    //display_set_font(DISPLAY_FONT_BIG);
-    //display_draw_string(0, 0, "ALARM");
+    display_set_font(DISPLAY_FONT_BIG);
+    display_set_font(DISPLAY_FONT_SMALL);
+    display_draw_string(0, 0, "ALARM");
+    display_draw_string(128- get_string_width("222.222.222.222"),0,"222.222.222.222" );
 
-    //display_set_font(DISPLAY_FONT_SMALL);
+    display_set_font(DISPLAY_FONT_SMALL);
     // Positions
-    display_draw_string(0, 14, "X");
-    display_draw_string(0, 34, "W");
-    //display_draw_string(0, 14+12, "Y:9999.999");
-    //display_draw_string(0, 14+24, "Z:9999.999");
-    //display_draw_string(64, 14, "A:9999.999");
-    //display_draw_string(64, 14+12, "B:9999.999");
-    //display_draw_string(64, 14+24, "c:9999.999");
+    display_draw_string(0, 16, "X:9999.123");
+    display_draw_string(0, 16+12, "Y:1234.999");
+    display_draw_string(0, 16+24, "Z:9999.123");
+    display_draw_string(64, 16, "A:5678.999");
+    display_draw_string(64, 16+12, "B:9999.567");
+    display_draw_string(64, 16+24, "C:9999.000");
 
 
     // Endstops
-    //display_draw_string(0, 64-13, "X:0 Y:0 Z:0 A:0 B:0 C:0");
+    display_draw_string(0, 64-12, "X:0 Y:0 Z:0 A:0 B:0 C:0");
    
     // Update the display
     display_refresh();
