@@ -33,7 +33,7 @@
 #endif //ARDUINO
 #include "grbl/report.h"
 
-#define POLLING_DELAY 800
+#define POLLING_DELAY 8000
 
 #if defined(PLUGIN_DISPLAY_ENABLE)
 #include "plugin_display.h"
@@ -188,7 +188,7 @@ static void polling_task(void *data) {
             } else {
                 screen1.end_stop[idx] = false;
             }
-            report_info(screen1.end_stop[idx] ? "1" : "0");
+            //report_info(screen1.end_stop[idx] ? "1" : "0");
             idx++;
             lim_pin_state.mask >>= 1;
         }
@@ -203,7 +203,7 @@ static void polling_task(void *data) {
             strcpy(screen1.pos_str[i], ftoa(screen1.pos[i], N_DECIMAL_COORDVALUE_MM));
         }
         
-        report_info((void *)screen1.pos_str[i]);
+        //report_info((void *)screen1.pos_str[i]);
     }
 
     // Draw information on display
@@ -211,17 +211,29 @@ static void polling_task(void *data) {
     
 #if ETHERNET_ENABLE || WIFI_ENABLE
     // IP address
-    display_draw_string(64, 0, "222.222.222.222");
-    report_info((void *)screen1.ip);
-    display_draw_string(0, 40, "X:9999.999OY:9999.999O");
-
-    
+   // display_draw_string(64, 0, "222.222.222.222");
+    //report_info((void *)screen1.ip);
+    //display_draw_string(0, 40, "X:9999.999OY:9999.999O");
 
 #endif //ETHERNET_ENABLE || WIFI_ENABLE
     
     // Machine state
-    display_set_font(DISPLAY_FONT_BIG);
-    display_draw_string(0, 15, "ALARM");
+    //display_set_font(DISPLAY_FONT_BIG);
+    //display_draw_string(0, 0, "ALARM");
+
+    //display_set_font(DISPLAY_FONT_SMALL);
+    // Positions
+    display_draw_string(0, 14, "X");
+    display_draw_string(0, 34, "W");
+    //display_draw_string(0, 14+12, "Y:9999.999");
+    //display_draw_string(0, 14+24, "Z:9999.999");
+    //display_draw_string(64, 14, "A:9999.999");
+    //display_draw_string(64, 14+12, "B:9999.999");
+    //display_draw_string(64, 14+24, "c:9999.999");
+
+
+    // Endstops
+    //display_draw_string(0, 64-13, "X:0 Y:0 Z:0 A:0 B:0 C:0");
    
     // Update the display
     display_refresh();

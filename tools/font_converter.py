@@ -4,6 +4,37 @@ Font Converter for OLED Displays
 Converts TrueType fonts to a C header file format compatible with OLED display libraries.
 Uses FreeType for accurate character positioning.
 
+## Header File Structure:
+1. Font Metadata (4 bytes):
+   - Byte 0: Maximum character width in pixels
+   - Byte 1: Maximum character height in pixels
+   - Byte 2: First character code
+   - Byte 3: Number of characters
+
+2. Jump Table (4 bytes per character):
+   - Bytes 0-1: MSB and LSB of data offset
+   - Byte 2: Size of character bitmap in bytes
+   - Byte 3: Width of character in pixels for proper spacing
+
+3. Font Data:
+   - Bitmap data for all characters
+   - Stored in column-wise format
+   - Each column consists of (max_height + 7) // 8 bytes
+   - Each bit represents one pixel (1 = on, 0 = off)
+   - Bits are arranged vertically within each byte
+
+## Usage in Client Programs:
+To render a character:
+1. Calculate the jump table index: char_code - first_char_code
+2. Access the jump table entry at: 4 + (index * 4)
+3. Get data offset: (jump_table[0] << 8) + jump_table[1]
+4. Get bitmap size: jump_table[2]
+5. Get character width: jump_table[3]
+6. Calculate bytes per column: (max_height + 7) // 8
+7. For each column (x = 0 to width-1):
+   a. Read bytes_per_col bytes at: data_offset + (x * bytes_per_col)
+   b. For each byte, render 8 vertical pixels according to the bits
+
 Copyright (C) 2025 Luc LEBOSSE
 
 This library is free software; you can redistribute it and/or
@@ -164,6 +195,9 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
     max_width = 0
     max_height = 0
     
+    # Store actual character widths for later use
+    char_widths = {}
+    
     # Determine maximum bitmap dimensions
     for i in range(char_range[0], char_range[1]):
         char = chr(i)
@@ -178,6 +212,11 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
             
             bitmap_width = glyph.bitmap.width
             bitmap_height = glyph.bitmap.rows
+            advance_width = int(glyph.advance.x / 64)
+            
+            # Store the actual width for this character
+            width = advance_width if advance_width > 0 else bitmap_width
+            char_widths[char] = width
             
             if bitmap_width > 0 and bitmap_height > 0:
                 max_width = max(max_width, bitmap_width)
@@ -189,16 +228,14 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
     # Ensure height is at least the font size
     max_height = max(max_height, int(height))
     
-    # Ensure max_height is at least 8 pixels for typical OLED displays
-    max_height = max(max_height, 8)
+    # Add a small margin to avoid cutting off characters
+    max_height += 1
     
-    # Round up max_height to multiple of 8 for byte alignment
-    max_height = ((max_height + 7) // 8) * 8
-    
-    # Calculate bytes per column for later use
-    bytes_per_col = max_height // 8
+    # Calculate bytes per column based on actual height
+    bytes_per_col = (max_height + 7) // 8
     
     print(f"Maximum bitmap dimensions: {max_width}x{max_height} pixels")
+    print(f"Bytes per column: {bytes_per_col}")
     
     # Create a list to store character data
     chars_data = []
@@ -210,9 +247,18 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
     try:
         ft_face.load_char(' ', freetype.FT_LOAD_RENDER)
         space_width = int(ft_face.glyph.advance.x / 64)
+        char_widths[' '] = space_width
         print(f"Space character width: {space_width} pixels")
     except:
         print(f"Warning: Could not determine space width, using {space_width} pixels")
+    
+    # Store character width information for debugging
+    if debug:
+        width_log_path = f"{debug_dir}/character_widths.txt"
+        with open(width_log_path, 'w') as wf:
+            wf.write("Character Width Information:\n")
+            wf.write("==========================\n")
+            wf.write("Char\tCode\tWidth (px)\n")
     
     for i in range(char_range[0], char_range[1]):
         char = chr(i)
@@ -221,6 +267,11 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
         if char == ' ':
             # Space character has no bitmap but needs an entry in the jump table
             jump_table.append((0, 0, 0, space_width))
+            
+            # Log width information
+            if debug:
+                with open(width_log_path, 'a') as wf:
+                    wf.write(f"'{char}'\t{i}\t{space_width}\n")
             
             # Save an empty debug image for space if debug mode is on
             if debug:
@@ -247,7 +298,13 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
             if bitmap_width == 0:
                 # Use advance width, or 1/4 of max_width as fallback
                 width = max(advance_width, max_width // 4)
+                char_widths[char] = width
                 jump_table.append((0, 0, 0, width))
+                
+                # Log width information
+                if debug:
+                    with open(width_log_path, 'a') as wf:
+                        wf.write(f"'{char}'\t{i}\t{width} (zero-width)\n")
                 
                 if debug:
                     try:
@@ -301,8 +358,14 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
             
             # Record advance width (actual character width including spacing)
             width = advance_width if advance_width > 0 else bitmap_width
+            char_widths[char] = width
             
-            # Record jump table entry
+            # Log width information
+            if debug:
+                with open(width_log_path, 'a') as wf:
+                    wf.write(f"'{char}'\t{i}\t{width}\n")
+            
+            # Record jump table entry - USING THE ACTUAL WIDTH
             msb = (offset >> 8) & 0xFF
             lsb = offset & 0xFF
             jump_table.append((msb, lsb, len(char_bytes), width))
@@ -316,15 +379,23 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
         except Exception as e:
             # Character not supported or other error
             print(f"Warning: Could not process character '{char}' (code {i}): {e}")
-            jump_table.append((0xFF, 0xFF, 0, max_width // 2))
+            fallback_width = max_width // 2
+            char_widths[char] = fallback_width
+            jump_table.append((0xFF, 0xFF, 0, fallback_width))
+            
+            # Log width information
+            if debug:
+                with open(width_log_path, 'a') as wf:
+                    wf.write(f"'{char}'\t{i}\t{fallback_width} (error fallback)\n")
             
             if debug:
                 try:
                     # Save an error placeholder image
-                    error_bitmap = np.zeros((max_height, max_width // 2), dtype=np.uint8)
+                    error_bitmap = np.zeros((max_height, fallback_width), dtype=np.uint8)
                     save_debug_images(char, error_bitmap, [], debug_dir, max_height, bytes_per_col)
                 except Exception as debug_err:
                     print(f"Warning: Could not save debug image for error character '{char}': {debug_err}")
+    
     
     # Compile font data
     font_data = []
@@ -354,19 +425,21 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
         'data_size': len(font_data),
         'source_font': os.path.basename(font_path),
         'ascender': ascender,
-        'descender': descender
+        'descender': descender,
+        'char_widths': char_widths,  # Store character widths for reference
+        'bytes_per_col': bytes_per_col  # Store bytes per column for reference
     }
     
     # Create a summary image with all characters if in debug mode
     if debug:
         try:
-            create_debug_summary(font_path, font_size, char_range, debug_dir)
+            create_debug_summary(font_path, font_size, char_range, debug_dir, char_widths)
         except Exception as e:
             print(f"Warning: Could not create debug summary: {e}")
     
     return font_data, font_info
 
-def create_debug_summary(font_path, font_size, char_range, debug_dir):
+def create_debug_summary(font_path, font_size, char_range, debug_dir, char_widths=None):
     """
     Create a summary debug image showing all processed characters
     """
@@ -404,10 +477,11 @@ def create_debug_summary(font_path, font_size, char_range, debug_dir):
                 ax.text(0.5, 0.5, '?', ha='center', va='center')
         else:
             ax.text(0.5, 0.5, '?', ha='center', va='center')
-            
-        # Add character info
-        title = f"'{char}'" if char.isprintable() and char != "'" else f"{code}"
-        ax.set_title(title)
+        
+        # Add character info including width if available
+        width_info = f", w:{char_widths[char]}px" if char_widths and char in char_widths else ""
+        title = f"'{char}'{width_info}" if char.isprintable() and char != "'" else f"{code}{width_info}"
+        ax.set_title(title, fontsize=8)
         ax.axis('off')
     
     plt.tight_layout()
@@ -430,12 +504,31 @@ def generate_c_header(font_data, font_info, output_path):
         f.write(f"/*\n")
         f.write(f" * Font Name: {font_info['name']}\n")
         f.write(f" * Font Size: {font_info['size']}\n")
-        f.write(f" * Font Width: {font_info['width']}\n")
+        f.write(f" * Font Width: {font_info['width']} (maximum width of any character)\n")
         f.write(f" * Font Height: {font_info['height']}\n")
         f.write(f" * First Character: {font_info['first_char']} ({chr(font_info['first_char'])})\n")
         f.write(f" * Character Count: {font_info['char_count']}\n")
         f.write(f" * Data Size: {font_info['data_size']} bytes\n")
         f.write(f" * Source Font: {font_info['source_font']}\n")
+        f.write(f" * Bytes per Column: {font_info['bytes_per_col']}\n")
+        f.write(f" *\n")
+        f.write(f" * Font Data Format:\n")
+        f.write(f" * - First 4 bytes: max width, height, first char, char count\n")
+        f.write(f" * - Jump Table: 4 bytes per character\n")
+        f.write(f" *   - byte 0-1: MSB & LSB of offset in data array\n")
+        f.write(f" *   - byte 2: Size in bytes of this character's bitmap\n")
+        f.write(f" *   - byte 3: Width of this character in pixels\n")
+        f.write(f" * - Font Data: Bitmap data for all characters\n")
+        f.write(f" *\n")
+        f.write(f" * To render character 'X':\n")
+        f.write(f" * 1. Find index: 'X' - {font_info['first_char']} = index\n")
+        f.write(f" * 2. Jump table entry position: 4 + (index * 4)\n")
+        f.write(f" * 3. Extract from data array:\n")
+        f.write(f" *    - offset = (jump_table[0] << 8) | jump_table[1]\n")
+        f.write(f" *    - size = jump_table[2]\n")
+        f.write(f" *    - width = jump_table[3]\n")
+        f.write(f" * 4. Bytes per column: {font_info['bytes_per_col']}\n")
+        f.write(f" * 5. Render bitmap columns from the data section\n")
         f.write(f" *\n")
         f.write(f" * This file was automatically generated by font_converter on {current_date}\n")
         f.write(f" * Created by Luc LEBOSSE\n")
@@ -452,24 +545,26 @@ def generate_c_header(font_data, font_info, output_path):
         f.write(f"const char {font_info['name']}[] PROGMEM = {{\n")
         
         # Width, height, first char, char count
-        f.write(f"\t0x{font_info['width']:02X}, // Width: {font_info['width']}\n")
+        f.write(f"\t0x{font_info['width']:02X}, // Width: {font_info['width']} (maximum)\n")
         f.write(f"\t0x{font_info['height']:02X}, // Height: {font_info['height']}\n")
         f.write(f"\t0x{font_info['first_char']:02X}, // First Char: {font_info['first_char']}\n")
         f.write(f"\t0x{font_info['char_count']:02X}, // Numbers of Chars: {font_info['char_count']}\n\n")
         
         # Jump table section
-        f.write("\t// Jump Table:\n")
+        f.write("\t// Jump Table: Format is [MSB, LSB, size, width]\n")
         
-        jump_table_size = font_info['char_count'] * 4
-        for i in range(0, jump_table_size, 4):
-            if i + 4 <= len(font_data):
-                msb = font_data[i + 4]
-                lsb = font_data[i + 5]
-                size = font_data[i + 6]
-                width = font_data[i + 7]
+        # Write jump table entries
+        char_count = font_info['char_count']
+        for i in range(char_count):
+            if i * 4 + 4 <= len(font_data):
+                char_code = font_info['first_char'] + i
+                char = chr(char_code)
                 
-                char_index = i // 4
-                char_code = font_info['first_char'] + char_index
+                # Get jump table entry from font data
+                msb = font_data[4 + i * 4 + 0]
+                lsb = font_data[4 + i * 4 + 1]
+                size = font_data[4 + i * 4 + 2]
+                width = font_data[4 + i * 4 + 3]
                 
                 # Generate a safe character representation for comments
                 char_repr = ""
@@ -477,16 +572,17 @@ def generate_c_header(font_data, font_info, output_path):
                     if char_code == 92:  # Backslash needs special handling
                         char_repr = "backslash"
                     else:
-                        char_repr = chr(char_code)
+                        char_repr = char
                 
                 offset = (msb << 8) + lsb
                 
-                f.write(f"\t0x{msb:02X}, 0x{lsb:02X}, 0x{size:02X}, 0x{width:02X},  // {char_code}:{offset} {char_repr}\n")
+                # Include actual width in comment for clarity
+                f.write(f"\t0x{msb:02X}, 0x{lsb:02X}, 0x{size:02X}, 0x{width:02X},  // {char_code}:{offset} '{char_repr}' width:{width}px\n")
         
         f.write("\n\t// Font Data:\n")
         
         # Font data section (after the header and jump table)
-        data_start = 4 + jump_table_size
+        data_start = 4 + (char_count * 4)  # Skip header (4) and jump table
         line_length = 0
         f.write("\t")
         
@@ -548,6 +644,15 @@ def main():
     
     print(f"Font conversion complete! Output saved to {args.output}")
     print(f"Font info: {font_info['width']}x{font_info['height']} pixels, {font_info['data_size']} bytes")
+    
+    # Print summary of some important character widths
+    if 'char_widths' in font_info:
+        important_chars = ['a', 'W', 'm', 'i', '1', '0', '%', '@']
+        print("\nCharacter Width Summary:")
+        print("=========================")
+        for char in important_chars:
+            if char in font_info['char_widths']:
+                print(f"Character '{char}': {font_info['char_widths'][char]} pixels")
 
 if __name__ == "__main__":
     main()

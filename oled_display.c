@@ -169,7 +169,7 @@ char_info_t get_char_info(const char* font, char c) {
     
     // Check if character is in range
     if (c < font_info.first_char || c >= font_info.first_char + font_info.char_count) {
-        info.width = font_info.width; // Use default width for undefined chars
+        info.width = font_info.width / 2; // Use default width for undefined chars
         return info;
     }
     
@@ -191,11 +191,21 @@ char_info_t get_char_info(const char* font, char c) {
     info.is_defined = true;
     
     // Calculate bitmap offset
-    uint16_t jump_table_size = font_info.char_count * JUMPTABLE_BYTES_PER_CHAR;
-    info.bitmap_offset = FONT_HEADER_SIZE + jump_table_size + ((offset_msb << 8) | offset_lsb);
+    uint16_t offset = (offset_msb << 8) | offset_lsb;
+    info.bitmap_offset = FONT_HEADER_SIZE + (font_info.char_count * JUMPTABLE_BYTES_PER_CHAR) + offset;
+    
+    // Calculate bytes per column for storage format
+    uint8_t bytes_per_column = (font_info.height + 7) / 8;
+    
+    // Debug info with actual character width from jump table
+    char debug[100];
+    sprintf(debug, "Char Info: Char '%c' (code %d): width=%u, height=%u, offset=%u", 
+            c, (int)c, info.width, font_info.height, info.bitmap_offset);
+    report_info(debug);
     
     return info;
 }
+
 
 /**
  * Draw a single pixel safely
@@ -309,20 +319,26 @@ void display_set_pixel(int16_t x, int16_t y) {
  * Set the current font by size
  */
 void display_set_font(display_font_size_t font_size) {
+    char  debug[100];
     switch (font_size) {
         case DISPLAY_FONT_SMALL:
             current_font = display_config.display_small_font;
+            sprintf(debug, "Small font %s", current_font);
             break;
         case DISPLAY_FONT_MEDIUM:
             current_font = display_config.display_medium_font;
+            sprintf(debug, "Medium font %s", current_font);
             break;
         case DISPLAY_FONT_BIG:
             current_font = display_config.display_big_font;
+            sprintf(debug, "Big font %s", current_font);
             break;
         default:
             current_font = display_config.display_small_font;  // Default to small font
+            sprintf(debug, "Default font %s", current_font);
             break;
     }
+    report_info(debug);
 }
 
 /**
@@ -486,45 +502,52 @@ int16_t display_draw_char(int16_t x, int16_t y, char c, const char* font) {
     font_info_t font_info = get_font_info(font);
     char_info_t char_info = get_char_info(font, c);
 
-     // If character is not defined OR has no bitmap data, just return its width
-     if (!char_info.is_defined || char_info.bytes == 0) {
+    // If character is not defined OR has no bitmap data, just return its width
+    if (!char_info.is_defined || char_info.bytes == 0) {
         return char_info.width + CHAR_SPACING;
     }
     
-    // Calculate how many vertical bytes this character requires
+    // Calculate bytes per column and number of columns
     uint8_t bytes_per_column = (font_info.height + 7) / 8;
+    uint8_t data_columns = char_info.bytes / bytes_per_column;
     
-    // Calculate actual bitmap width
-    uint8_t bitmap_width = char_info.bytes / bytes_per_column;
+    // Debug info
+    char debug[100];
+    sprintf(debug, "Drawing char '%c' (code %d) at x=%d, y=%d, width=%d, height=%d, columns=%d", 
+            c, (int)c, x, y, char_info.width, font_info.height, data_columns);
+    report_info(debug);
     
     // Draw the character pixel by pixel
-    int pixels_drawn = 0;
-    
-    for (uint8_t j = 0; j < bitmap_width; j++) {
-        // Skip if column is out of bounds
-        if (x + j < 0 || x + j >= display_config.width) continue;
-        
+    for (uint8_t j = 0; j < data_columns; j++) {
         // For each vertical byte in this column
         for (uint8_t k = 0; k < bytes_per_column; k++) {
-            // Get byte from font data using new formula
-            uint8_t column_byte = pgm_read_byte(&font[char_info.bitmap_offset + j * bytes_per_column + k]);
+            // Get byte from font data
+            uint16_t byte_offset = char_info.bitmap_offset + (j * bytes_per_column) + k;
+            uint8_t column_byte = pgm_read_byte(&font[byte_offset]);
             
             if (column_byte == 0) continue; // Skip empty bytes for optimization
             
-            // Calculate the vertical pixel position
-            int16_t y_pos = y + k * BITS_PER_BYTE;
-            
             // Draw each bit of the column byte
             for (uint8_t bit = 0; bit < BITS_PER_BYTE; bit++) {
+                // Make sure we're not drawing beyond the font height
+                if ((k * BITS_PER_BYTE + bit) >= font_info.height) 
+                    continue;
+                    
+                // Check if this bit is set in the column byte
                 if (column_byte & (1 << bit)) {
-                    int16_t y_pixel = y_pos + bit;
-                    display_draw_pixel_safe(x + j, y_pixel);
-                    pixels_drawn++;
+                    // Calculate y position
+                    int16_t y_pixel = y + (k * BITS_PER_BYTE) + bit;
+                    
+                    // Draw pixel if within display bounds
+                    if (y_pixel >= 0 && y_pixel < display_config.height) {
+                        display_set_pixel(x + j, y_pixel);
+                    }
                 }
             }
         }
     }
     
+    // Return the advance width plus spacing
     return char_info.width + CHAR_SPACING;
 }
 
@@ -571,11 +594,8 @@ int16_t display_draw_string_with_font(int16_t x, int16_t y, const char* text, co
         }
         
         // Draw the character and advance cursor
-        if (char_info.is_defined) {
-            cursor_x += display_draw_char(cursor_x, cursor_y, c, font);
-        } else {
-            cursor_x += char_info.width + CHAR_SPACING;
-        }
+        int16_t char_width = display_draw_char(cursor_x, cursor_y, c, font);
+        cursor_x += char_width;
     }
     
     // Return the width of the string (distance from initial x position)
@@ -593,6 +613,8 @@ int16_t display_draw_string(int16_t x, int16_t y, const char* text) {
         current_font = display_config.display_small_font;
     }
     
+    char debug[100];
+
     // Convert to ASCII if text might be UTF-8
     char* ascii_text = utf8_string_to_ascii(text);
     
@@ -605,6 +627,9 @@ int16_t display_draw_string(int16_t x, int16_t y, const char* text) {
     display_set_color(DISPLAY_COLOR_BLACK);
     display_fill_rect(x, y, text_width, font_info.height);
     display_set_color(original_color);
+    
+    sprintf(debug, "Draw String X:%d Y:%d, text_width: %d font height:%d", x, y, text_width, font_info.height);
+    report_info(debug);
     
     // Draw the string
     int16_t width = display_draw_string_with_font(x, y, ascii_text, current_font);
@@ -642,7 +667,7 @@ uint16_t get_string_width_with_font(const char* text, uint16_t length, const cha
     }
     
     // Remove the last character spacing if there was at least one character
-    if (total_width > 0) {
+    if (total_width > 0 && length > 0) {
         total_width -= CHAR_SPACING;
     }
     
