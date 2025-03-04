@@ -23,8 +23,9 @@
 #ifndef SSD1306_I2C_H
 #define SSD1306_I2C_H
 #include "oled_display.h"
-#include "./fonts/arialmt_9.h"
-#include "./fonts/arialmt_14.h"
+#include "./fonts/AlphaProta_9.h"
+#include "./fonts/AlphaProta_8.h"
+#include "./fonts/AlphaProta_7.h"
 #include "./images/logo-120x48.h"
 
 // Define the initialization sequence array
@@ -71,9 +72,9 @@ display_config_t display_config = {
   .init_sequence_length = sizeof(ssd1306_init_sequence),
   .init_sequence = (uint8_t *)ssd1306_init_sequence,
   // Default font pointers
-  .display_small_font = arialmt_9,
-  .display_medium_font = arialmt_9, // Using arialmt_8 for medium as well, you might want to adjust this
-  .display_big_font = arialmt_14,
+  .display_small_font = AlphaProta_7,
+  .display_medium_font = AlphaProta_8,
+  .display_big_font = AlphaProta_9,
   .logo_width = LOGO_WIDTH,
   .logo_height= LOGO_HEIGH, 
   .logo_rle = false,

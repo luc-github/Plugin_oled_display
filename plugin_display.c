@@ -33,7 +33,7 @@
 #endif //ARDUINO
 #include "grbl/report.h"
 
-#define POLLING_DELAY 8000
+#define POLLING_DELAY 800
 
 #if defined(PLUGIN_DISPLAY_ENABLE)
 #include "plugin_display.h"
@@ -188,7 +188,6 @@ static void polling_task(void *data) {
             } else {
                 screen1.end_stop[idx] = false;
             }
-            //report_info(screen1.end_stop[idx] ? "1" : "0");
             idx++;
             lim_pin_state.mask >>= 1;
         }
@@ -202,8 +201,6 @@ static void polling_task(void *data) {
         } else {
             strcpy(screen1.pos_str[i], ftoa(screen1.pos[i], N_DECIMAL_COORDVALUE_MM));
         }
-        
-        //report_info((void *)screen1.pos_str[i]);
     }
 
     // Draw information on display
@@ -219,10 +216,9 @@ static void polling_task(void *data) {
     
     // Machine state
     display_set_font(DISPLAY_FONT_BIG);
-    display_set_font(DISPLAY_FONT_SMALL);
     display_draw_string(0, 0, "ALARM");
+    display_set_font(DISPLAY_FONT_SMALL);
     display_draw_string(128- get_string_width("222.222.222.222"),0,"222.222.222.222" );
-
     display_set_font(DISPLAY_FONT_SMALL);
     // Positions
     display_draw_string(0, 16, "X:9999.123");

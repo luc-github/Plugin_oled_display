@@ -5,18 +5,23 @@ Converts TrueType fonts to a C header file format compatible with OLED display l
 Uses FreeType for accurate character positioning.
 
 ## Header File Structure:
-1. Font Metadata (4 bytes):
+1. Font Metadata (5 bytes):
    - Byte 0: Maximum character width in pixels
    - Byte 1: Maximum character height in pixels
-   - Byte 2: First character code
-   - Byte 3: Number of characters
+   - Byte 2: MSB of character count
+   - Byte 3: LSB of character count (combined with byte 2 gives total character count N)
+   - Byte 4: Recommended character spacing in pixels
 
-2. Jump Table (4 bytes per character):
+2. Character Table (N bytes):
+   - List of character codes included in the font
+   - Used to check if a character is supported and find its index
+
+3. Jump Table (4 bytes per character):
    - Bytes 0-1: MSB and LSB of data offset
    - Byte 2: Size of character bitmap in bytes
-   - Byte 3: Width of character in pixels for proper spacing
+   - Byte 3: Width of character in pixels (actual bitmap width)
 
-3. Font Data:
+4. Font Data:
    - Bitmap data for all characters
    - Stored in column-wise format
    - Each column consists of (max_height + 7) // 8 bytes
@@ -25,15 +30,30 @@ Uses FreeType for accurate character positioning.
 
 ## Usage in Client Programs:
 To render a character:
-1. Calculate the jump table index: char_code - first_char_code
-2. Access the jump table entry at: 4 + (index * 4)
-3. Get data offset: (jump_table[0] << 8) + jump_table[1]
-4. Get bitmap size: jump_table[2]
-5. Get character width: jump_table[3]
-6. Calculate bytes per column: (max_height + 7) // 8
-7. For each column (x = 0 to width-1):
-   a. Read bytes_per_col bytes at: data_offset + (x * bytes_per_col)
-   b. For each byte, render 8 vertical pixels according to the bits
+1. Get font info from header:
+   - Get max width, height from bytes 0-1
+   - Get character count from (byte 2 << 8) | byte 3
+   - Get recommended spacing from byte 4
+
+2. Search for the character code in the character table:
+   - Start at byte 5 (after metadata)
+   - Check each byte until you find a matching code or reach the end
+   - If found, remember its position (index) in the table
+
+3. Use this index to find the jump table entry:
+   - Jump table starts at byte (5 + N) where N is the number of characters
+   - Jump table entry position = (5 + N) + (index * 4)
+
+4. Extract from jump table entry:
+   - offset = (jump_table[0] << 8) | jump_table[1]
+   - size = jump_table[2]
+   - width = jump_table[3]
+
+5. For each column (x = 0 to width-1):
+   - Read bytes_per_col bytes at: data_offset + (x * bytes_per_col)
+   - For each byte, render 8 vertical pixels according to the bits
+
+6. Advance cursor position by: character_width + font_spacing
 
 Copyright (C) 2025 Luc LEBOSSE
 
@@ -61,6 +81,16 @@ import freetype
 import numpy as np
 import matplotlib.pyplot as plt
 import re
+
+# Spacing calculation (to be adjusted)
+def calculate_default_spacing(font_size):
+    if font_size <= 10:
+        return 1
+    elif font_size <= 40:
+        return 2
+    else:
+        # +1 for each additionnal 10 pixels above 40
+        return 2 + ((font_size - 40) // 10) + 1
 
 def calculate_y_position(bitmap_top, bitmap_height, matrix_height):
     """
@@ -145,14 +175,38 @@ def save_debug_images(char, char_bitmap, final_bitmap_bytes, debug_dir, max_heig
     
     print(f"Saved debug images for character '{char}' (code {char_code})")
 
-def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name=None, debug=False):
+def parse_scope_string(scope_str):
+    """
+    Parse the scope string into a set of character codes.
+    
+    Args:
+        scope_str: A string containing characters to include
+        
+    Returns:
+        A sorted list of character codes
+    """
+    if not scope_str:
+        return None
+        
+    # Remove duplicates while preserving order
+    unique_chars = []
+    seen = set()
+    for c in scope_str:
+        if c not in seen:
+            unique_chars.append(c)
+            seen.add(c)
+            
+    return [ord(c) for c in unique_chars]
+
+def generate_font_data(font_path, font_size, custom_scope=None, char_range=(32, 128), variable_name=None, debug=False, spacing=None):
     """
     Generate font data from a TrueType font file using FreeType for accurate metrics.
     
     Args:
         font_path: Path to the TrueType font file
         font_size: Font size in pixels
-        char_range: Range of characters to include (start, end)
+        custom_scope: List of character codes to include (if None, use char_range)
+        char_range: Range of characters to include (start, end) if custom_scope is None
         variable_name: Name of the variable in the output file
         debug: If True, save debug images of each character
         
@@ -174,6 +228,14 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
         if not os.path.exists(debug_dir):
             os.makedirs(debug_dir)
         print(f"Debug mode enabled. Images will be saved to {debug_dir}/")
+    
+    # Get the list of characters to process
+    if custom_scope is not None:
+        char_codes = custom_scope
+        print(f"Using custom character set with {len(char_codes)} characters")
+    else:
+        char_codes = list(range(char_range[0], char_range[1]))
+        print(f"Using character range {char_range[0]}-{char_range[1]} ({len(char_codes)} characters)")
     
     try:
         # Load font with FreeType
@@ -199,8 +261,8 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
     char_widths = {}
     
     # Determine maximum bitmap dimensions
-    for i in range(char_range[0], char_range[1]):
-        char = chr(i)
+    for char_code in char_codes:
+        char = chr(char_code)
         
         # Skip space character in dimension calculation
         if char == ' ':
@@ -239,7 +301,7 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
     
     # Create a list to store character data
     chars_data = []
-    jump_table = []
+    jump_table_entries = []
     offset = 0
     
     # Get space character advance width
@@ -260,18 +322,18 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
             wf.write("==========================\n")
             wf.write("Char\tCode\tWidth (px)\n")
     
-    for i in range(char_range[0], char_range[1]):
-        char = chr(i)
+    for char_code in char_codes:
+        char = chr(char_code)
         
         # Special handling for space character
         if char == ' ':
             # Space character has no bitmap but needs an entry in the jump table
-            jump_table.append((0, 0, 0, space_width))
+            jump_table_entries.append((0, 0, 0, space_width))
             
             # Log width information
             if debug:
                 with open(width_log_path, 'a') as wf:
-                    wf.write(f"'{char}'\t{i}\t{space_width}\n")
+                    wf.write(f"'{char}'\t{char_code}\t{space_width}\n")
             
             # Save an empty debug image for space if debug mode is on
             if debug:
@@ -299,12 +361,12 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
                 # Use advance width, or 1/4 of max_width as fallback
                 width = max(advance_width, max_width // 4)
                 char_widths[char] = width
-                jump_table.append((0, 0, 0, width))
+                jump_table_entries.append((0, 0, 0, width))
                 
                 # Log width information
                 if debug:
                     with open(width_log_path, 'a') as wf:
-                        wf.write(f"'{char}'\t{i}\t{width} (zero-width)\n")
+                        wf.write(f"'{char}'\t{char_code}\t{width} (zero-width)\n")
                 
                 if debug:
                     try:
@@ -363,12 +425,12 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
             # Log width information
             if debug:
                 with open(width_log_path, 'a') as wf:
-                    wf.write(f"'{char}'\t{i}\t{width}\n")
+                    wf.write(f"'{char}'\t{char_code}\t{width}\n")
             
             # Record jump table entry - USING THE ACTUAL WIDTH
             msb = (offset >> 8) & 0xFF
             lsb = offset & 0xFF
-            jump_table.append((msb, lsb, len(char_bytes), width))
+            jump_table_entries.append((msb, lsb, len(char_bytes), width))
             
             # Update offset
             offset += len(char_bytes)
@@ -378,15 +440,15 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
             
         except Exception as e:
             # Character not supported or other error
-            print(f"Warning: Could not process character '{char}' (code {i}): {e}")
+            print(f"Warning: Could not process character '{char}' (code {char_code}): {e}")
             fallback_width = max_width // 2
             char_widths[char] = fallback_width
-            jump_table.append((0xFF, 0xFF, 0, fallback_width))
+            jump_table_entries.append((0xFF, 0xFF, 0, fallback_width))
             
             # Log width information
             if debug:
                 with open(width_log_path, 'a') as wf:
-                    wf.write(f"'{char}'\t{i}\t{fallback_width} (error fallback)\n")
+                    wf.write(f"'{char}'\t{char_code}\t{fallback_width} (error fallback)\n")
             
             if debug:
                 try:
@@ -400,14 +462,30 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
     # Compile font data
     font_data = []
     
-    # Header: width, height, first char, number of chars
+    # Check if the number of characters exceeds 16-bit limit
+    if len(char_codes) > 65535:
+        print(f"Warning: Number of characters ({len(char_codes)}) exceeds 65535, truncating to 65535")
+        char_codes = char_codes[:65535]
+    if spacing is not None:
+        font_spacing  = spacing
+    else:
+        font_spacing  = calculate_default_spacing(font_size)
+    
+    print(f"Using character spacing: {font_spacing } pixels")
+    
+    # Header: width, height, char count MSB, char count LSB
     font_data.append(max_width)
     font_data.append(max_height)
-    font_data.append(char_range[0])
-    font_data.append(char_range[1] - char_range[0])
+    font_data.append((len(char_codes) >> 8) & 0xFF)  # MSB of char count
+    font_data.append(len(char_codes) & 0xFF)         # LSB of char count
+    font_data.append(font_spacing  & 0xFF)                 # spacing
     
-    # Jump table
-    for entry in jump_table:
+    # Character table - always include this
+    for char_code in char_codes:
+        font_data.append(char_code)
+    
+    # Jump table - 4 bytes per character
+    for entry in jump_table_entries:
         font_data.extend(entry)
     
     # Character data
@@ -420,38 +498,39 @@ def generate_font_data(font_path, font_size, char_range=(32, 128), variable_name
         'size': font_size,
         'width': max_width,
         'height': max_height,
-        'first_char': char_range[0],
-        'char_count': char_range[1] - char_range[0],
+        'char_count': len(char_codes),
+        'spacing': font_spacing, 
         'data_size': len(font_data),
         'source_font': os.path.basename(font_path),
         'ascender': ascender,
         'descender': descender,
         'char_widths': char_widths,  # Store character widths for reference
-        'bytes_per_col': bytes_per_col  # Store bytes per column for reference
+        'bytes_per_col': bytes_per_col,  # Store bytes per column for reference
+        'char_codes': char_codes  # Store the actual character codes
     }
     
     # Create a summary image with all characters if in debug mode
     if debug:
         try:
-            create_debug_summary(font_path, font_size, char_range, debug_dir, char_widths)
+            create_debug_summary(font_path, font_size, char_codes, debug_dir, char_widths)
         except Exception as e:
             print(f"Warning: Could not create debug summary: {e}")
     
     return font_data, font_info
-
-def create_debug_summary(font_path, font_size, char_range, debug_dir, char_widths=None):
+    
+def create_debug_summary(font_path, font_size, char_codes, debug_dir, char_widths=None):
     """
     Create a summary debug image showing all processed characters
     """
-    rows = (char_range[1] - char_range[0] + 15) // 16  # Characters per row
-    cols = min(16, char_range[1] - char_range[0])
+    rows = (len(char_codes) + 15) // 16  # Characters per row
+    cols = min(16, len(char_codes))
     
     font_basename = os.path.splitext(os.path.basename(font_path))[0]
     
     plt.figure(figsize=(cols * 1.2, rows * 1.2))
     plt.suptitle(f"Font: {font_basename}, Size: {font_size}px", fontsize=16)
     
-    for i, code in enumerate(range(char_range[0], char_range[1])):
+    for i, code in enumerate(char_codes):
         char = chr(code)
         row = i // 16
         col = i % 16
@@ -506,29 +585,37 @@ def generate_c_header(font_data, font_info, output_path):
         f.write(f" * Font Size: {font_info['size']}\n")
         f.write(f" * Font Width: {font_info['width']} (maximum width of any character)\n")
         f.write(f" * Font Height: {font_info['height']}\n")
-        f.write(f" * First Character: {font_info['first_char']} ({chr(font_info['first_char'])})\n")
-        f.write(f" * Character Count: {font_info['char_count']}\n")
+        f.write(f" * Character Set: Custom ({font_info['char_count']} characters)\n")
+        f.write(f" * Character Spacing: {font_info['spacing']} pixels\n")
         f.write(f" * Data Size: {font_info['data_size']} bytes\n")
         f.write(f" * Source Font: {font_info['source_font']}\n")
         f.write(f" * Bytes per Column: {font_info['bytes_per_col']}\n")
         f.write(f" *\n")
         f.write(f" * Font Data Format:\n")
-        f.write(f" * - First 4 bytes: max width, height, first char, char count\n")
+        f.write(f" * - First 5 bytes: max width, height, char count MSB, char count LSB, spacing\n")
+        f.write(f" * - Character Table: N bytes listing the codes of included characters\n")
         f.write(f" * - Jump Table: 4 bytes per character\n")
         f.write(f" *   - byte 0-1: MSB & LSB of offset in data array\n")
         f.write(f" *   - byte 2: Size in bytes of this character's bitmap\n")
-        f.write(f" *   - byte 3: Width of this character in pixels\n")
+        f.write(f" *   - byte 3: Width of character in pixels\n")
         f.write(f" * - Font Data: Bitmap data for all characters\n")
         f.write(f" *\n")
         f.write(f" * To render character 'X':\n")
-        f.write(f" * 1. Find index: 'X' - {font_info['first_char']} = index\n")
-        f.write(f" * 2. Jump table entry position: 4 + (index * 4)\n")
-        f.write(f" * 3. Extract from data array:\n")
+        f.write(f" * 1. Get font info from header:\n")
+        f.write(f" *    - Get max width, height from bytes 0-1\n")
+        f.write(f" *    - Get character count from (byte 2 << 8) | byte 3\n")
+        f.write(f" *    - Get recommended spacing from byte 4\n")
+        f.write(f" * 2. Search for character code of 'X' in the character table\n")
+        f.write(f" *    (bytes 5 to 5+N-1)\n")
+        f.write(f" * 3. If found at position i, calculate jump table entry position:\n")
+        f.write(f" *    jump_entry = (5 + N) + (i * 4)\n")
+        f.write(f" * 4. Extract from jump table entry:\n")
         f.write(f" *    - offset = (jump_table[0] << 8) | jump_table[1]\n")
         f.write(f" *    - size = jump_table[2]\n")
         f.write(f" *    - width = jump_table[3]\n")
-        f.write(f" * 4. Bytes per column: {font_info['bytes_per_col']}\n")
-        f.write(f" * 5. Render bitmap columns from the data section\n")
+        f.write(f" * 5. Bytes per column: {font_info['bytes_per_col']}\n")
+        f.write(f" * 6. Render bitmap columns from the data section\n")
+        f.write(f" * 7. Advance cursor position by: character_width + font_spacing\n")
         f.write(f" *\n")
         f.write(f" * This file was automatically generated by font_converter on {current_date}\n")
         f.write(f" * Created by Luc LEBOSSE\n")
@@ -544,45 +631,67 @@ def generate_c_header(font_data, font_info, output_path):
         # Begin array definition
         f.write(f"const char {font_info['name']}[] PROGMEM = {{\n")
         
-        # Width, height, first char, char count
+        # Metadata header
         f.write(f"\t0x{font_info['width']:02X}, // Width: {font_info['width']} (maximum)\n")
         f.write(f"\t0x{font_info['height']:02X}, // Height: {font_info['height']}\n")
-        f.write(f"\t0x{font_info['first_char']:02X}, // First Char: {font_info['first_char']}\n")
-        f.write(f"\t0x{font_info['char_count']:02X}, // Numbers of Chars: {font_info['char_count']}\n\n")
+        
+        # Number of characters (16 bits)
+        char_count_msb = (font_info['char_count'] >> 8) & 0xFF
+        char_count_lsb = font_info['char_count'] & 0xFF
+        f.write(f"\t0x{char_count_msb:02X}, // Number of Chars MSB\n")
+        f.write(f"\t0x{char_count_lsb:02X}, // Number of Chars LSB: {font_info['char_count']}\n\n")
+        spacing_value = font_info.get('spacing', 1)  # Valeur par défaut 1 si non définie
+        f.write(f"\t0x{spacing_value:02X}, // Character Spacing: {spacing_value} pixels\n\n")
+        
+        # Character table (always included)
+        f.write("\t// Character Table: List of character codes in this font\n")
+        for i, char_code in enumerate(font_info['char_codes']):
+            char = chr(char_code)
+            char_repr = f"'{char}'" if char.isprintable() and char != "'" else f"0x{char_code:02X}"
+            f.write(f"\t0x{char_code:02X}, // {i}: {char_repr}\n")
+        f.write("\n")
         
         # Jump table section
         f.write("\t// Jump Table: Format is [MSB, LSB, size, width]\n")
         
+        # Calculate jump table start position
+        jump_table_start = 5 + font_info['char_count']  # Skip header and character table
+        
         # Write jump table entries
-        char_count = font_info['char_count']
-        for i in range(char_count):
-            if i * 4 + 4 <= len(font_data):
-                char_code = font_info['first_char'] + i
-                char = chr(char_code)
-                
+        for i, char_code in enumerate(font_info['char_codes']):
+            entry_pos = jump_table_start + i * 4
+            
+            if entry_pos + 3 < len(font_data):
                 # Get jump table entry from font data
-                msb = font_data[4 + i * 4 + 0]
-                lsb = font_data[4 + i * 4 + 1]
-                size = font_data[4 + i * 4 + 2]
-                width = font_data[4 + i * 4 + 3]
+                msb = font_data[entry_pos]
+                lsb = font_data[entry_pos + 1]
+                size = font_data[entry_pos + 2]
+                width = font_data[entry_pos + 3]
                 
+                # Get character representation
+                char = chr(char_code)
                 # Generate a safe character representation for comments
-                char_repr = ""
-                if 32 <= char_code <= 126:  # Printable ASCII characters excluding backslash
-                    if char_code == 92:  # Backslash needs special handling
-                        char_repr = "backslash"
-                    else:
-                        char_repr = char
+                if 32 <= char_code <= 126 and char_code != 92:  # Printable ASCII excluding backslash
+                    char_repr = char
+                elif char_code == 92:  # Backslash needs special handling
+                    char_repr = "backslash"
+                else:
+                    char_repr = ""
                 
                 offset = (msb << 8) + lsb
                 
                 # Include actual width in comment for clarity
-                f.write(f"\t0x{msb:02X}, 0x{lsb:02X}, 0x{size:02X}, 0x{width:02X},  // {char_code}:{offset} '{char_repr}' width:{width}px\n")
+                comment = f"{char_code}:{offset}"
+                if char_repr:
+                    comment += f" '{char_repr}'"
+                comment += f" width:{width}px"
+                
+                f.write(f"\t0x{msb:02X}, 0x{lsb:02X}, 0x{size:02X}, 0x{width:02X},  // {comment}\n")
         
         f.write("\n\t// Font Data:\n")
         
-        # Font data section (after the header and jump table)
-        data_start = 4 + (char_count * 4)  # Skip header (4) and jump table
+        # Font data section (after the header, character table, and jump table)
+        data_start = jump_table_start + (font_info['char_count'] * 4)  # Skip header, char table, and jump table
         line_length = 0
         f.write("\t")
         
@@ -602,7 +711,7 @@ def generate_c_header(font_data, font_info, output_path):
         # Close array and guard
         f.write("\n};\n\n")
         f.write(f"#endif // {guard_name}\n")
-
+        
 def main():
     parser = argparse.ArgumentParser(description='Convert TrueType fonts to OLED display compatible format')
     parser.add_argument('font_path', help='Path to the TrueType font file')
@@ -610,17 +719,27 @@ def main():
     parser.add_argument('--output', '-o', help='Output header file path')
     parser.add_argument('--name', help='Variable name for the font in the output file')
     parser.add_argument('--range', help='Character range in format "start-end" (e.g., "32-128")', default="32-128")
+    parser.add_argument('--scope', help='Custom character set (e.g., "ABC123")')
     parser.add_argument('--debug', action='store_true', help='Save debug bitmap images for characters')
+    parser.add_argument('--spacing', type=int, help='Override character spacing in pixels (default: calculated based on font size)')
     
     args = parser.parse_args()
-    
+    spacing=args.spacing
     # Parse character range
-    try:
-        start, end = map(int, args.range.split('-'))
-        char_range = (start, end)
-    except ValueError:
-        print("Error: Invalid character range format. Use 'start-end' (e.g., '32-128')")
-        return
+    char_range = None
+    if not args.scope:
+        try:
+            start, end = map(int, args.range.split('-'))
+            char_range = (start, end)
+        except ValueError:
+            print("Error: Invalid character range format. Use 'start-end' (e.g., '32-128')")
+            return
+    
+    # Parse custom scope if provided
+    custom_scope = None
+    if args.scope:
+        custom_scope = parse_scope_string(args.scope)
+        print(f"Using custom character set: {args.scope}")
     
     # Generate output path if not specified
     if args.output is None:
@@ -631,6 +750,7 @@ def main():
     font_data, font_info = generate_font_data(
         args.font_path, 
         args.font_size, 
+        custom_scope=custom_scope,
         char_range=char_range,
         variable_name=args.name,
         debug=args.debug
