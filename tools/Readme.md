@@ -14,7 +14,6 @@ This repository contains tools for converting TrueType fonts and PNG images into
 ### Font Converter
 - Converts any TrueType font to a bitmap format optimized for OLED displays
 - Custom character sets support (specific characters) and character ranges
-- Compatible with common OLED display libraries like Adafruit_SSD1306 and U8g2
 - Automatic character spacing calculation based on font size
 - Generates compact byte arrays to minimize memory usage
 - Debug mode to visualize character rendering
