@@ -87,12 +87,12 @@ static const uint8_t JUMPTABLE_LSB_OFFSET = 1;     // Offset for LSB in jump tab
 static const uint8_t JUMPTABLE_SIZE_OFFSET = 2;    // Offset for size in jump table
 static const uint8_t JUMPTABLE_WIDTH_OFFSET = 3;   // Offset for width in jump table
 
-
 static bool display_connected = false;
 
 // Global variables
 static const char* current_font = NULL;
-static display_color_t current_color = DISPLAY_COLOR_WHITE;
+static display_color_t current_fg_color = DISPLAY_COLOR_WHITE;
+static display_color_t current_bg_color = DISPLAY_COLOR_BLACK;
 
 
 
@@ -300,7 +300,12 @@ char* utf8_string_to_ascii(const char* str) {
  * Set the color for drawing operations
  */
 void display_set_color(display_color_t color) {
-    current_color = color;
+    current_fg_color = color;
+    if (color == DISPLAY_COLOR_WHITE){
+        current_bg_color = DISPLAY_COLOR_BLACK;
+    } else {
+        current_bg_color = DISPLAY_COLOR_WHITE;
+    }
 }
 
 /**
@@ -318,15 +323,12 @@ void display_set_pixel(int16_t x, int16_t y) {
     uint8_t *bufferLocation = &display_config.back_buffer[page * display_config.width + x];
     
     // Set the bit based on current color
-    switch (current_color) {
+    switch (current_fg_color) {
         case DISPLAY_COLOR_WHITE:
             *bufferLocation |= (1 << bit);  // All pixels are white
             break;
         case DISPLAY_COLOR_BLACK:
             *bufferLocation &= ~(1 << bit); // All pixels are black
-            break;
-        case DISPLAY_COLOR_INVERSE:
-            *bufferLocation ^= (1 << bit);  // All pixels are inverted
             break;
     }
 }
@@ -499,12 +501,15 @@ void display_draw_xbm(int16_t x, int16_t y, int16_t width, int16_t height, const
     }
 }
 
+uint16_t get_font_height(){
+    return get_font_info(current_font).height;
+}
+
 /**
  * Draw a single character with the specified font
  */
 int16_t display_draw_char(int16_t x, int16_t y, char c, const char* font) {
     if (font == NULL) {
-        report_info("No font");
         return 0;
     }
     
@@ -625,11 +630,11 @@ int16_t display_draw_string(int16_t x, int16_t y, const char* text) {
     uint16_t text_width = get_string_width_with_font(ascii_text, strlen(ascii_text), current_font);
     
     // Clear the area where the string will be drawn
-    display_color_t original_color = current_color;
-    display_set_color(DISPLAY_COLOR_BLACK);
-    display_fill_rect(x, y, text_width, font_info.height);
-    display_set_color(original_color);
     
+    display_color_t original_color = current_fg_color;
+    display_set_color(current_bg_color);
+    display_fill_rect(x-1, y-1, text_width+2, font_info.height+2);
+    display_set_color(original_color);
     // Draw the string
     int16_t width = display_draw_string_with_font(x, y, ascii_text, current_font);
     

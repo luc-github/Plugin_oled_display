@@ -37,7 +37,6 @@
 typedef enum {
   DISPLAY_COLOR_BLACK = 0,    // Pixel off
   DISPLAY_COLOR_WHITE = 1,    // Pixel on
-  DISPLAY_COLOR_INVERSE = 2   // Invert pixel
 } display_color_t;
 
 // Define font sizes
@@ -90,6 +89,7 @@ int16_t display_draw_string_with_font(int16_t x, int16_t y, const char* text, co
 int16_t display_draw_string(int16_t x, int16_t y, const char* text);
 uint16_t get_string_width_with_font(const char* text, uint16_t length, const char* font);
 uint16_t get_string_width(const char* text);
+uint16_t get_font_height();
 bool display_refresh(void);
 bool display_clear(void);
 bool display_clear_immediate(void);

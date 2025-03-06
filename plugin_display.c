@@ -31,7 +31,8 @@
 #include "grbl/task.h"
 #include "grbl/system.h"
 #endif //ARDUINO
-#include "grbl/report.h"
+
+extern char const *const axis_letter[N_AXIS];
 
 #define POLLING_DELAY 800
 
@@ -61,9 +62,9 @@ typedef struct {
 #if ETHERNET_ENABLE || WIFI_ENABLE
     char ip[30];
 #endif //ETHERNET_ENABLE || WIFI_ENABLE
-    float pos[N_AXIS];
     char pos_str[N_AXIS][STRLEN_COORDVALUE + 1];
-    bool end_stop[N_AXIS];
+    char label[N_AXIS][3];
+    int8_t end_stop[N_AXIS];
 } oled_screen_data_t;
 
 // Global variables
@@ -132,38 +133,39 @@ static void onStateChanged(sys_state_t state)
     }
     switch(state) {
         case STATE_IDLE:
-            screen1.state = "Idle";
+            screen1.state = "IDLE";
             break;
         case STATE_CHECK_MODE:
-            screen1.state = "Check";
+            screen1.state = "CHECK";
             break;
         case STATE_HOMING:
-            screen1.state = "Home";
+            screen1.state = "HOME";
             break;
         case STATE_JOG:
-            screen1.state = "Jog";
+            screen1.state = "JOG";
             break;
         case STATE_CYCLE:
-            screen1.state = "Run";
+            screen1.state = "RUN";
             break;
         case STATE_HOLD:
-            screen1.state = "Hold";
+            screen1.state = "HOLD";
             break;
         case STATE_SAFETY_DOOR:
-            screen1.state = "Door";
+            screen1.state = "DOOR";
             break;
         case STATE_SLEEP:
-            screen1.state = "Sleep";
+            screen1.state = "SLEEP";
             break;
         case STATE_ESTOP:
         case STATE_ALARM:
-            screen1.state = "Alarm";
+            screen1.state = "ALARM";
             break;
         case STATE_TOOL_CHANGE:
         default:
             break;
     };
 }
+
 
 /**
  * Polling task for updating display data
@@ -184,9 +186,9 @@ static void polling_task(void *data) {
         lim_pin_state.mask &= AXES_BITMASK;
         while (lim_pin_state.mask && idx < 3) {
             if (lim_pin_state.mask & 0x01) {
-                screen1.end_stop[idx] = true;
+                screen1.end_stop[idx] = 1;
             } else {
-                screen1.end_stop[idx] = false;
+                screen1.end_stop[idx] = 0;
             }
             idx++;
             lim_pin_state.mask >>= 1;
@@ -194,44 +196,132 @@ static void polling_task(void *data) {
     }
     
     // Get positions
-    system_convert_array_steps_to_mpos(screen1.pos, sys.position);
+    float pos[N_AXIS];
+    system_convert_array_steps_to_mpos(pos, sys.position);
     for (uint8_t i = 0; i < N_AXIS; i++) {
         if (settings.flags.report_inches) {
-            strcpy(screen1.pos_str[i], ftoa(screen1.pos[i] * INCH_PER_MM, N_DECIMAL_COORDVALUE_INCH));
+            strcpy(screen1.pos_str[i], ftoa(pos[i] * INCH_PER_MM, N_DECIMAL_COORDVALUE_INCH));
         } else {
-            strcpy(screen1.pos_str[i], ftoa(screen1.pos[i], N_DECIMAL_COORDVALUE_MM));
+            strcpy(screen1.pos_str[i], ftoa(pos[i], N_DECIMAL_COORDVALUE_MM));
         }
     }
 
     // Draw information on display
-    display_set_font(DISPLAY_FONT_SMALL);
+    display_clear();
+    // Top never change
+    display_set_font(DISPLAY_FONT_BIG);
+    display_set_color(DISPLAY_COLOR_BLACK);  
+    // Machine state
+    display_draw_string(1, 1, screen1.state);
     
 #if ETHERNET_ENABLE || WIFI_ENABLE
     // IP address
-   // display_draw_string(64, 0, "222.222.222.222");
-    //report_info((void *)screen1.ip);
-    //display_draw_string(0, 40, "X:9999.999OY:9999.999O");
-
-#endif //ETHERNET_ENABLE || WIFI_ENABLE
-    
-    // Machine state
-    display_set_font(DISPLAY_FONT_BIG);
-    display_draw_string(0, 0, "ALARM");
+    display_set_color(DISPLAY_COLOR_WHITE);
     display_set_font(DISPLAY_FONT_SMALL);
-    display_draw_string(128- get_string_width("222.222.222.222"),0,"222.222.222.222" );
+    display_draw_string(128- get_string_width(screen1.ip)-1,2,screen1.ip);
+#endif //ETHERNET_ENABLE || WIFI_ENABLE
+
+//TODO: Current positions are for a 128x64 display
+//      Need to add a way to handle different display size when added
+
+display_set_color(DISPLAY_COLOR_WHITE);
+display_set_font(DISPLAY_FONT_SMALL);
+    // Positions
+
+#if N_AXIS >= 5
+    // 2 columns for positions
     display_set_font(DISPLAY_FONT_SMALL);
     // Positions
-    display_draw_string(0, 16, "X:9999.123");
-    display_draw_string(0, 16+12, "Y:1234.999");
-    display_draw_string(0, 16+24, "Z:9999.123");
-    display_draw_string(64, 16, "A:5678.999");
-    display_draw_string(64, 16+12, "B:9999.567");
-    display_draw_string(64, 16+24, "C:9999.000");
+    //X
+    display_draw_string(0, 16, screen1.label[0]);
+    display_draw_string(60- get_string_width(screen1.pos_str[0]), 16, screen1.pos_str[0]);
 
+    //Y
+    display_draw_string(0, 16+12, screen1.label[1]);
+    display_draw_string(60- get_string_width(screen1.pos_str[1]), 16+12, screen1.pos_str[1]);
+
+    //Z
+    display_draw_string(0, 16+24, screen1.label[2]);
+    display_draw_string(60- get_string_width(screen1.pos_str[2]), 16+24, screen1.pos_str[2]);
+
+    //A or U
+    display_draw_string(66, 16, screen1.label[3]);
+    display_draw_string(127-get_string_width(screen1.pos_str[3]), 16, screen1.pos_str[3]);
+
+    //B or V
+    display_draw_string(66, 16+12, screen1.label[4]);
+    display_draw_string(127-get_string_width(screen1.pos_str[4]), 16+12, screen1.pos_str[4]);
+
+
+ #if N_AXIS == 6   
+    //C or W
+    display_draw_string(66, 16+24, screen1.label[5]);
+    display_draw_string(127-get_string_width(screen1.pos_str[5]), 16+24, screen1.pos_str[5]);
+#endif //N_AXIS == 6
 
     // Endstops
-    display_draw_string(0, 64-12, "X:0 Y:0 Z:0 A:0 B:0 C:0");
+    //Draw bottom area
+    display_set_color(DISPLAY_COLOR_WHITE);
+    display_fill_rect(0, 64-11, 128, 11);
+    // Draw endstops in black
+    display_set_color(DISPLAY_COLOR_BLACK);
+    for (uint8_t i = 0; i < N_AXIS; i++) {
+       // is endstop reporting ?
+        if (screen1.end_stop[i]!=-1) {
+            display_draw_string(1 + (i * 20), 64-10, screen1.label[i]);
+            // Draw endstop status
+            if (screen1.end_stop[i] == 1) {
+               display_fill_rect((2 + (i * 20)  + get_string_width(screen1.label[i])), 64-10, 5, 8);
+               
+            } else {
+               display_draw_rect((2 + (i * 20)  + get_string_width(screen1.label[i])), 64-10, 5, 8);
+            }
+        } 
+            
+    }
+#else //N_AXIS < 5
+uint8_t spacing = 3;
+uint16_t x_end_stop_status = 90; 
+uint16_t start_x_row = 15;
+// 1 row for each position and limit state
+#if N_AXIS == 4
+    display_set_font(DISPLAY_FONT_SMALL);
+#else
+    display_set_font(DISPLAY_FONT_SMALL);
+    x_end_stop_status = 110;
+    start_x_row = 15;
+#endif //N_AXIS == 4
+
+#if  N_AXIS == 3
+    spacing = 6;
+#endif //N_AXIS == 3
+
+#if  N_AXIS == 2
+    spacing = 10;
+#endif //N_AXIS == 2
+
+#if  N_AXIS == 1
+    spacing = 15;
+#endif
+
+for (uint8_t i = 0; i < N_AXIS; i++) {
+
+    display_draw_string(start_x_row , 14 + (i* get_font_height() ) + ((i+1)*spacing), screen1.label[i]);
+    display_draw_string(x_end_stop_status - 5 - get_string_width(screen1.pos_str[i]), 14 + (i* get_font_height() ) + ((i+1)*(spacing)), screen1.pos_str[i]);
+
+    if (screen1.end_stop[i]!=-1) {
+        // Draw endstop status
+        if (screen1.end_stop[i] == 1) {
+           display_fill_rect( x_end_stop_status, 14 + (i* get_font_height() ) + ((i+1)*spacing), 5, get_font_height()-1);
+           
+        } else {
+           display_draw_rect( x_end_stop_status, 14 + (i* get_font_height() ) + ((i+1)*spacing), 5, get_font_height()-1);
+        }
+    } 
    
+}
+#endif //N_AXIS_NB >= 5
+
     // Update the display
     display_refresh();
 }
@@ -246,9 +336,16 @@ void plugin_display_init(void) {
 #if ETHERNET_ENABLE || WIFI_ENABLE
     strcpy(screen1.ip, "0.0.0.0");
 #endif
-    memset(screen1.pos, 0, sizeof(screen1.pos));
-    memset(screen1.end_stop, 0, sizeof(screen1.end_stop));
-    memset(screen1.pos_str, 0, sizeof(screen1.pos_str));
+
+    for (uint8_t i = 0; i < N_AXIS; i++) {
+        strcpy(screen1.pos_str[i],"0.000");
+        // Initialize labels that will be used for position and endstop
+        screen1.label[i][0]=axis_letter[i][0];
+        screen1.label[i][1]=':';
+        screen1.label[i][2]='\0';
+        // Initialize endstop status
+        screen1.end_stop[i] = -1; // -1 means not reporting
+    }
 
     // Hook report options
     on_report_options = grbl.on_report_options;
