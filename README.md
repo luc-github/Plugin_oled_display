@@ -1,5 +1,5 @@
 # Plugin_oled_display
-grblHAL plugin for oled display
+grblHAL plugin for oled display - this is still a work in progress - be patient
 
 ### Boot
 <img src="https://raw.githubusercontent.com/luc-github/Plugin_oled_display/refs/heads/main/pictures/boot.jpg" alt="drawing" width="200"/>
