@@ -66,8 +66,8 @@ display_config_t display_config = {
   .back_buffer = NULL,
   .front_buffer = NULL,
   .buffer_size = 0,
-  .command_byte = 0x80,
-  .data_byte = 0x40,
+  .command_head = 0x80,
+  .data_head = 0x40,
   .init_sequence_length = sizeof(ssd1306_init_sequence),
   .init_sequence = (uint8_t *)ssd1306_init_sequence,
   // Default font pointers

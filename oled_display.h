@@ -55,8 +55,8 @@ typedef struct  {
   uint8_t * back_buffer; // Preparation Buffer
   uint8_t * front_buffer; // Current Buffer
   uint16_t buffer_size;
-  uint8_t command_byte;
-  uint8_t data_byte;
+  uint8_t command_head;
+  uint8_t data_head;
   uint8_t init_sequence_length;
   uint8_t * init_sequence; 
   const char* display_small_font;
@@ -93,4 +93,5 @@ uint16_t get_font_height();
 bool display_refresh(void);
 bool display_clear(void);
 bool display_clear_immediate(void);
+bool display_connected(void);
 

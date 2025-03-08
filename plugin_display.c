@@ -32,12 +32,9 @@
 #include "grbl/system.h"
 #endif //ARDUINO
 
-extern char const *const axis_letter[N_AXIS];
 
-#define POLLING_DELAY 800
+#if defined(DISPLAY_ENABLE) && DISPLAY_ENABLE == OLED_DISPLAY_I2C
 
-#if defined(PLUGIN_DISPLAY_ENABLE)
-#include "plugin_display.h"
 // Include according to the display type
 #include "oled_display.h"
 // Include configuration for display type
@@ -50,6 +47,15 @@ extern char const *const axis_letter[N_AXIS];
 #include "networking/networking.h"
 #endif //ARDUINO
 #endif //ETHERNET_ENABLE || WIFI_ENABLE
+
+// extern variables
+extern char const *const axis_letter[N_AXIS];
+
+// Define plugin version
+#define PLUGGIN_DISPLAY_VERSION "1.0.0"
+// Define polling delay
+#define POLLING_DELAY 800
+
 
 // --------------------------------------------------------
 // Types and Constants
@@ -122,7 +128,13 @@ static void report_options(bool newopt)
     if(newopt) {
         hal.stream.write(",DISPLAY");
     } else {
-        report_plugin("Oled Display", PLUGGIN_DISPLAY_VERSION);
+        if (display_connected()){
+            report_plugin("I2C Display",PLUGGIN_DISPLAY_VERSION "(connected)");
+        
+        } else {
+            report_plugin("I2C Display",  PLUGGIN_DISPLAY_VERSION "(not connected)");
+        
+        }
     }
 }
 
@@ -369,4 +381,4 @@ void plugin_display_init(void) {
     }
 }
 
-#endif //PLUGIN_DISPLAY_ENABLE
+#endif //DISPLAY_ENABLE

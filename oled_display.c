@@ -28,15 +28,17 @@
 #include "../grbl/hal.h"
 #include "../grbl/task.h"
 #include "../grbl/system.h"
+#include "../grbl/plugins.h"
 #else
 #include "driver.h"
 #include "grbl/hal.h"
 #include "grbl/task.h"
 #include "grbl/system.h"
+#include "grbl/plugins.h"
 #endif //ARDUINO
 #include "grbl/report.h"
 
-#if defined(PLUGIN_DISPLAY_ENABLE)
+#if defined(DISPLAY_ENABLE) && DISPLAY_ENABLE == OLED_DISPLAY_I2C
 #include "oled_display.h"
 // --------------------------------------------------------
 // Types and Constants
@@ -87,7 +89,7 @@ static const uint8_t JUMPTABLE_LSB_OFFSET = 1;     // Offset for LSB in jump tab
 static const uint8_t JUMPTABLE_SIZE_OFFSET = 2;    // Offset for size in jump table
 static const uint8_t JUMPTABLE_WIDTH_OFFSET = 3;   // Offset for width in jump table
 
-static bool display_connected = false;
+static bool disp_connected = false;
 
 // Global variables
 static const char* current_font = NULL;
@@ -103,7 +105,7 @@ static display_color_t current_bg_color = DISPLAY_COLOR_BLACK;
 // Interface functions
 
 static bool display_send_command(uint8_t command);
-static bool display_send_data(uint8_t* data, size_t size);
+static bool display_send_data(uint8_t * command, size_t size);
 
 // Helper functions
 uint8_t pgm_read_byte(const char* ptr);
@@ -114,29 +116,37 @@ uint8_t utf8_to_ascii(unsigned char c);
 char* utf8_string_to_ascii(const char* str);
 
 
-// External functions
-extern bool i2c_send_with_control_byte(uint_fast16_t i2c_address, uint8_t control_byte, uint8_t *data, size_t size, bool block);
-extern bool i2c_probe(uint_fast16_t i2c_address);
-
 
 // --------------------------------------------------------
 // Helper Functions
 // --------------------------------------------------------
 
-uint8_t pgm_read_byte(const char* ptr) {
-#ifdef ARDUINO
-    return pgm_read_byte(ptr);
-#else
-    return *ptr;
-#endif
-}
-
 static bool display_send_command(uint8_t command) {
-    return i2c_send_with_control_byte(display_config.i2c_address, display_config.command_byte, &command, 1, true);
+    // Prepare the data transfer structure
+    // with a command head of display_config.command_head
+    i2c_transfer_t data = {
+        .address = display_config.i2c_address,
+        .word_addr_bytes = display_config.command_head,
+        .word_addr = 1,
+        .count = 1,
+        .no_block = false,
+        .data = &command
+    };
+    return i2c_transfer(&data, false);
 }
 
-static bool display_send_data(uint8_t* data, size_t size) {
-    return i2c_send_with_control_byte(display_config.i2c_address, display_config.data_byte, data, size, true);
+static bool display_send_data(  uint8_t* data, size_t size) {
+    // Prepare the data transfer structure
+    // with a data head of display_config.data_head 
+    i2c_transfer_t data = {
+        .address = display_config.i2c_address,
+        .word_addr_bytes = display_config.data_head,
+        .word_addr = 1,
+        .count = size,
+        .no_block = false,
+        .data = data
+    };
+    return i2c_transfer(&data, false);
 }
 
 /**
@@ -797,7 +807,7 @@ bool display_init(void) {
     }
     
     // Check if display is connected
-    if ((display_connected = i2c_probe(display_config.i2c_address))) {
+    if ((disp_connected = i2c_probe(display_config.i2c_address))) {
         // Send initialization sequence
         for (uint8_t i = 0; i < display_config.init_sequence_length; i++) {
             // Send the command
@@ -821,7 +831,7 @@ bool display_init(void) {
                 success = false;
             }
         }
-        
+
         // Clear the display if initialization succeeded
         if (success) {
             if ((success = display_clear())) {
@@ -844,4 +854,10 @@ bool display_init(void) {
 }
 
 
-#endif //PLUGIN_DISPLAY_ENABLE
+// give status of display
+bool display_connected(){
+    return disp_connected;
+}
+
+
+#endif //DISPLAY_ENABLE
