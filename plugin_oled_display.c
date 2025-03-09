@@ -35,21 +35,8 @@
 
 #if DISPLAY_ENABLE == PLUGIN_OLED_DISPLAY
 
-// Sanity check for display type
-#ifndef DISPLAY_TYPE
-#define DISPLAY_TYPE DISPLAY_SSD1306_I2C
-#endif //DISPLAY_TYPE
-
 // Include according to the display type
 #include "oled_display.h"
-// Include configuration for display type
-#if DISPLAY_TYPE == DISPLAY_SSD1306_I2C
-#include "ssd1306_i2c.h"
-#endif //DISPLAY_TYPE == DISPLAY_SSD1306_I2C
-
-#if DISPLAY_TYPE == DISPLAY_SH1106_I2C
-#include "sh1106_i2c.h"
-#endif //DISPLAY_TYPE == DISPLAY_SH1106_I2C
 
 #if ETHERNET_ENABLE || WIFI_ENABLE
 #ifdef ARDUINO

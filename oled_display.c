@@ -40,10 +40,23 @@
 
 #if DISPLAY_ENABLE == PLUGIN_OLED_DISPLAY
 #include "oled_display.h"
+
+#ifndef DISPLAY_TYPE
+#define DISPLAY_TYPE DISPLAY_SH1106_I2C
+#endif //DISPLAY_TYPE 
+
+// Include configuration for display type
+#if DISPLAY_TYPE == DISPLAY_SSD1306_I2C
+#include "ssd1306_i2c.h"
+#endif //DISPLAY_TYPE == DISPLAY_SSD1306_I2C
+
+#if DISPLAY_TYPE == DISPLAY_SH1106_I2C
+#include "sh1106_i2c.h"
+#endif //DISPLAY_TYPE == DISPLAY_SH1106_I2C
+
 // --------------------------------------------------------
 // Types and Constants
 // --------------------------------------------------------
-
 
 /**
  * Font information structure
@@ -64,8 +77,6 @@ typedef struct {
     uint8_t bytes;          // Size in bytes
     bool is_defined;        // Whether character is defined in font
 } char_info_t;
-
-
 
 // Define data to display
 typedef struct {
@@ -90,6 +101,10 @@ static const uint8_t JUMPTABLE_SIZE_OFFSET = 2;    // Offset for size in jump ta
 static const uint8_t JUMPTABLE_WIDTH_OFFSET = 3;   // Offset for width in jump table
 
 static bool disp_connected = false;
+static i2c_transfer_t i2c_data = {
+   .cmd_bytes = 1,
+   .no_block = On
+};
 
 // Global variables
 static const char* current_font = NULL;
@@ -97,24 +112,29 @@ static display_color_t current_fg_color = DISPLAY_COLOR_WHITE;
 static display_color_t current_bg_color = DISPLAY_COLOR_BLACK;
 
 
+// Macro
+#ifndef ARDUINO
+#define pgm_read_byte(ptr) (*(ptr))
+#endif
 
 // --------------------------------------------------------
 // Function Prototypes
 // --------------------------------------------------------
-
 // Interface functions
 
 static bool display_send_command(uint8_t command);
 static bool display_send_data(uint8_t * command, size_t size);
 
 // Helper functions
-uint8_t pgm_read_byte(const char* ptr);
 font_info_t get_font_info(const char* font);
 char_info_t get_char_info(const char* font, char c);
 bool display_draw_pixel_safe(int16_t x, int16_t y);
 uint8_t utf8_to_ascii(unsigned char c);
 char* utf8_string_to_ascii(const char* str);
 
+
+// External functions
+extern bool i2c_probe(i2c_address_t i2c_address);
 
 
 // --------------------------------------------------------
@@ -124,29 +144,19 @@ char* utf8_string_to_ascii(const char* str);
 static bool display_send_command(uint8_t command) {
     // Prepare the data transfer structure
     // with a command head of display_config.command_head
-    i2c_transfer_t data = {
-        .address = display_config.i2c_address,
-        .word_addr_bytes = display_config.command_head,
-        .word_addr = 1,
-        .count = 1,
-        .no_block = false,
-        .data = &command
-    };
-    return i2c_transfer(&data, false);
+    i2c_data.count = 1;
+    i2c_data.data = &command;
+    i2c_data.cmd = display_config.command_head;
+    return i2c_transfer(&i2c_data, false);
 }
 
 static bool display_send_data(  uint8_t* data, size_t size) {
     // Prepare the data transfer structure
     // with a data head of display_config.data_head 
-    i2c_transfer_t data = {
-        .address = display_config.i2c_address,
-        .word_addr_bytes = display_config.data_head,
-        .word_addr = 1,
-        .count = size,
-        .no_block = false,
-        .data = data
-    };
-    return i2c_transfer(&data, false);
+    i2c_data.count = size;
+    i2c_data.data = data;
+    i2c_data.cmd = display_config.data_head;
+    return i2c_transfer(&i2c_data, false);
 }
 
 /**
@@ -797,6 +807,8 @@ bool display_clear_immediate(void) {
  */
 bool display_init(void) {
     bool success = true;
+    // Set the I2C address
+    i2c_data.address = display_config.i2c_address;
     
     // Set font size
     display_set_font(DISPLAY_FONT_SMALL);
@@ -807,7 +819,8 @@ bool display_init(void) {
     }
     
     // Check if display is connected
-    if ((disp_connected = i2c_probe(display_config.i2c_address))) {
+    if ( i2c_probe(display_config.i2c_address)) {
+        disp_connected = true;
         // Send initialization sequence
         for (uint8_t i = 0; i < display_config.init_sequence_length; i++) {
             // Send the command
@@ -835,7 +848,6 @@ bool display_init(void) {
         // Clear the display if initialization succeeded
         if (success) {
             if ((success = display_clear())) {
-                report_info("Display initialized");
                 
                 // Draw welcome screen
                 display_draw_rect(0, 0, display_config.width, display_config.height); 

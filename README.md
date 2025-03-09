@@ -21,13 +21,13 @@ grblHAL plugin for oled display - this is still a work in progress - be patient
 * Add in plugins_init.h
 
 ```
-#if PLDISPLAY_ENABLE == OLED_DISPLAY_I2CUGIN_OLED_DISPLAY_ENABLE
+#if DISPLAY_ENABLE == PLUGIN_OLED_DISPLAY
     extern bool plugin_oled_display_init (void);
     plugin_oled_display_init();
 #endif
 ```
 
-in my_machine.h
+* In my_machine.h
 
 `#define DISPLAY_ENABLE PLUGIN_OLED_DISPLAY`
 then
@@ -43,6 +43,66 @@ Note: Be sure in plugins.h there is :
 // OLED Display
 #define DISPLAY_SSD1306_I2C     ((1<<0)|DISPLAY_I2C) //!< 1
 #define DISPLAY_SH1106_I2C      ((1<<1)|DISPLAY_I2C) //!< 3
+```
+* Copy plugin repository to  main 
+
+ESP32/main/plugin_oled_display
+
+* Edit ESP32/main/CMakeLists.txt
+    - Set a variable for the path of the plugin source code
+    
+```
+set(PLUGIN_OLED_DISPLAY_SOURCE
+ plugin_oled_display/plugin_oled_display.c
+ plugin_oled_display/oled_display.c
+)
+```
+    - Add the paths to the global source code
+    
+```
+list (APPEND SRCS ${PLUGIN_OLED_DISPLAY_SOURCE})
+
+```
+
+So you should get something like this:
+
+```
+set(USB_SOURCE
+ usb_serial.c
+)
+
+set(PLUGIN_OLED_DISPLAY_SOURCE
+ plugin_oled_display/plugin_oled_display.c
+ plugin_oled_display/oled_display.c
+)
+
+if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/../3rdParty.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/../3rdParty.cmake)
+endif()
+
+if("${target}" STREQUAL "esp32s3")
+list (APPEND SRCS ${USB_SOURCE})
+list (APPEND SRCS ${I2S_S3_SOURCE})
+else()
+list (APPEND SRCS ${I2S_SOURCE})
+endif()
+
+list (APPEND SRCS ${MY_PLUGIN_SOURCE})
+list (APPEND SRCS ${NETWORKING_SOURCE})
+list (APPEND SRCS ${KEYPAD_SOURCE})
+list (APPEND SRCS ${TRINAMIC_SPI_SOURCE})
+list (APPEND SRCS ${TRINAMIC_UART_SOURCE})
+list (APPEND SRCS ${WEBUI_SOURCE})
+list (APPEND SRCS ${SDCARD_SOURCE})
+list (APPEND SRCS ${BLUETOOTH_SOURCE})
+list (APPEND SRCS ${MODBUS_SOURCE})
+list (APPEND SRCS ${SPINDLE_SOURCE})
+list (APPEND SRCS ${EEPROM_SOURCE})
+list (APPEND SRCS ${LASER_SOURCE})
+list (APPEND SRCS ${MISC_PLUGINS_SOURCE})
+list (APPEND SRCS ${EMBROIDERY_SOURCE})
+list (APPEND SRCS ${OPENPNP_SOURCE})
+list (APPEND SRCS ${PLUGIN_OLED_DISPLAY_SOURCE})
 ```
 
 ### Tools
