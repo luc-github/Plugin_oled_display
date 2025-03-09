@@ -38,7 +38,7 @@
 #endif //ARDUINO
 #include "grbl/report.h"
 
-#if defined(PLUGIN_OLED_DISPLAY_ENABLE)
+#if DISPLAY_ENABLE == PLUGIN_OLED_DISPLAY
 #include "oled_display.h"
 // --------------------------------------------------------
 // Types and Constants
@@ -860,4 +860,4 @@ bool display_connected(){
 }
 
 
-#endif //PLUGIN_OLED_DISPLAY_ENABLE
+#endif //DISPLAY_ENABLE == PLUGIN_OLED_DISPLAY

@@ -29,9 +29,21 @@ grblHAL plugin for oled display - this is still a work in progress - be patient
 
 in my_machine.h
 
-#define PLUGIN_OLED_DISPLAY_ENABLE
-#define DISPLAY_ENABLE DISPLAY_SSD1306_I2C
+`#define DISPLAY_ENABLE PLUGIN_OLED_DISPLAY`
+then
+`#define DISPLAY_TYPE DISPLAY_SSD1306_I2C`
+or 
+`#define DISPLAY_TYPE DISPLAY_SH1106_I2C`
 
+Note: Be sure in plugins.h there is :
+
+```
+#define PLUGIN_OLED_DISPLAY     ((1<<5)|DISPLAY_I2C) //!< 33
+
+// OLED Display
+#define DISPLAY_SSD1306_I2C     ((1<<0)|DISPLAY_I2C) //!< 1
+#define DISPLAY_SH1106_I2C      ((1<<1)|DISPLAY_I2C) //!< 3
+```
 
 ### Tools
 
