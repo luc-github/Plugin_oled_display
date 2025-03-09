@@ -1,6 +1,6 @@
 /*
 
-  plugin_display.c - plugin for displaying informations on oled screen.
+  plugin_oled_display.c - plugin for displaying informations on oled screen.
 
   Part of grblHAL
 
@@ -33,12 +33,18 @@
 #endif //ARDUINO
 
 
-#if defined(DISPLAY_ENABLE) && DISPLAY_ENABLE == OLED_DISPLAY_I2C
+#if defined(PLUGIN_OLED_DISPLAY_ENABLE)
 
 // Include according to the display type
 #include "oled_display.h"
 // Include configuration for display type
+#if DISPLAY_ENABLE == DISPLAY_SSD1306_I2C
 #include "ssd1306_i2c.h"
+#endif //DISPLAY_ENABLE == DISPLAY_SSD1306_I2C
+
+#if DISPLAY_ENABLE == DISPLAY_SH1106_I2C
+#include "sh1106_i2c.h"
+#endif //DISPLAY_ENABLE == DISPLAY_SH1106_I2C
 
 #if ETHERNET_ENABLE || WIFI_ENABLE
 #ifdef ARDUINO
@@ -342,7 +348,7 @@ for (uint8_t i = 0; i < N_AXIS; i++) {
 /**
  * Initialize the OLED display plugin
  */
-void plugin_display_init(void) {
+void plugin_oled_display_init(void) {
     // Initialize screen data
     screen1.state = "IDLE";
 #if ETHERNET_ENABLE || WIFI_ENABLE
@@ -381,4 +387,4 @@ void plugin_display_init(void) {
     }
 }
 
-#endif //DISPLAY_ENABLE
+#endif //PLUGIN_OLED_DISPLAY_ENABLE

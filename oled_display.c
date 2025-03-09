@@ -38,7 +38,7 @@
 #endif //ARDUINO
 #include "grbl/report.h"
 
-#if defined(DISPLAY_ENABLE) && DISPLAY_ENABLE == OLED_DISPLAY_I2C
+#if defined(PLUGIN_OLED_DISPLAY_ENABLE)
 #include "oled_display.h"
 // --------------------------------------------------------
 // Types and Constants
@@ -734,8 +734,8 @@ bool display_refresh(void) {
             success &= display_send_command(0xB0 | page);
             
             // Reset the column
-            success &= display_send_command(0x00);
-            success &= display_send_command(0x10);
+            success &= display_send_command(0x00 | SHIFT_COMMAND_1);        // Set lower column start address
+            success &= display_send_command(0x10 | SHIFT_COMMAND_2);
             
             // Send the data
             success &= display_send_data(display_config.back_buffer + (page * display_config.width), display_config.width);
@@ -777,8 +777,8 @@ bool display_clear_immediate(void) {
         success &= display_send_command(0xB0 | page);
         
         // Reset the column
-        success &= display_send_command(0x00);
-        success &= display_send_command(0x10);
+        success &= display_send_command(0x00 | SHIFT_COMMAND_1);        // Set lower column start address
+        success &= display_send_command(0x10 | SHIFT_COMMAND_2);
         
         // Send the data to clear the page
         success &= display_send_data(display_config.back_buffer + (page * display_config.width), display_config.width);
@@ -860,4 +860,4 @@ bool display_connected(){
 }
 
 
-#endif //DISPLAY_ENABLE
+#endif //PLUGIN_OLED_DISPLAY_ENABLE

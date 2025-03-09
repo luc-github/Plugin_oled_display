@@ -16,6 +16,22 @@ grblHAL plugin for oled display - this is still a work in progress - be patient
 ### 6 Axis
 <img src="https://raw.githubusercontent.com/luc-github/Plugin_oled_display/refs/heads/main/pictures/6axis.jpg" alt="drawing" width="200"/>
 
+### Installation
+
+* Add in plugins_init.h
+
+```
+#if PLDISPLAY_ENABLE == OLED_DISPLAY_I2CUGIN_OLED_DISPLAY_ENABLE
+    extern bool plugin_oled_display_init (void);
+    plugin_oled_display_init();
+#endif
+```
+
+in my_machine.h
+
+#define PLUGIN_OLED_DISPLAY_ENABLE
+#define DISPLAY_ENABLE DISPLAY_SSD1306_I2C
+
 
 ### Tools
 

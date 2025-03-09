@@ -1,6 +1,6 @@
 /*
 
-  ssd1306_i2c.h configuration for ssd1306 I2C oled screen.
+  sh1106_i2c.h configuration for sh1106 I2C oled screen.
 
   Part of grblHAL
 
@@ -20,15 +20,15 @@
   along with grblHAL. If not, see <http://www.gnu.org/licenses/>.
 
 */
-#ifndef SSD1306_I2C_H
-#define SSD1306_I2C_H
+#ifndef SH1106_I2C_H
+#define SH1106_I2C_H
 #include "oled_display.h"
 #include "./fonts/oled_9.h"
 #include "./fonts/oled_11.h"
 #include "./images/logo-120x48.h"
 
 // Define the initialization sequence array
-static const uint8_t ssd1306_init_sequence[] = { 
+static const uint8_t sh1106_init_sequence[] = { 
     0xAE, // Display off
     0xD5, // Set display clock divide ratio/oscillator frequency
     0x80, // Set divide ratio
@@ -68,8 +68,8 @@ display_config_t display_config = {
   .buffer_size = 0,
   .command_head = 0x80,
   .data_head = 0x40,
-  .init_sequence_length = sizeof(ssd1306_init_sequence),
-  .init_sequence = (uint8_t *)ssd1306_init_sequence,
+  .init_sequence_length = sizeof(sh1106_init_sequence),
+  .init_sequence = (uint8_t *)sh1106_init_sequence,
   // Default font pointers
   .display_small_font = oled_9,
   .display_medium_font = oled_9,
@@ -80,7 +80,8 @@ display_config_t display_config = {
   .logo_bits = logo_bits
 };
 
-#define SHIFT_COMMAND_1 0
-#define SHIFT_COMMAND_2 0
+#define SHIFT_COMMAND_1 (2 & 0x0F)
+#define SHIFT_COMMAND_2 ((2 >> 4) & 0x0F)
 
-#endif //SSD1306_I2C_H
+
+#endif //SH1106_I2C_H
