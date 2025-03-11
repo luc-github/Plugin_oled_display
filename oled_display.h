@@ -48,6 +48,7 @@ typedef enum {
 
 // Define display configuration structure
 typedef struct  {
+  const char * name;
   uint8_t i2c_address;
   uint8_t width;
   uint8_t height;
@@ -93,5 +94,6 @@ uint16_t get_font_height();
 bool display_refresh(void);
 bool display_clear(void);
 bool display_clear_immediate(void);
-bool display_connected(void);
+bool display_connected(void);\
+const char * display_name(void);
 

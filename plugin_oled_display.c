@@ -126,13 +126,9 @@ static void report_options(bool newopt)
     if(newopt) {
         hal.stream.write(",DISPLAY");
     } else {
-        if (display_connected()){
-            report_plugin("I2C Display",PLUGGIN_DISPLAY_VERSION "(connected)");
-        
-        } else {
-            report_plugin("I2C Display",  PLUGGIN_DISPLAY_VERSION "(not connected)");
-        
-        }
+        char buffer[50];
+        snprintf(buffer, sizeof(buffer), "%s - (%s %sconnected)", PLUGGIN_DISPLAY_VERSION, display_name(), display_connected() ? "" : "not ");
+        report_plugin("Display",buffer);
     }
 }
 

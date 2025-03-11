@@ -133,9 +133,6 @@ uint8_t utf8_to_ascii(unsigned char c);
 char* utf8_string_to_ascii(const char* str);
 
 
-// External functions
-extern bool i2c_probe(i2c_address_t i2c_address);
-
 
 // --------------------------------------------------------
 // Helper Functions
@@ -147,6 +144,8 @@ static bool display_send_command(uint8_t command) {
     i2c_data.count = 1;
     i2c_data.data = &command;
     i2c_data.cmd = display_config.command_head;
+    // Set the I2C address
+    i2c_data.address = display_config.i2c_address;
     return i2c_transfer(&i2c_data, false);
 }
 
@@ -156,6 +155,8 @@ static bool display_send_data(  uint8_t* data, size_t size) {
     i2c_data.count = size;
     i2c_data.data = data;
     i2c_data.cmd = display_config.data_head;
+    // Set the I2C address
+    i2c_data.address = display_config.i2c_address;
     return i2c_transfer(&i2c_data, false);
 }
 
@@ -807,8 +808,6 @@ bool display_clear_immediate(void) {
  */
 bool display_init(void) {
     bool success = true;
-    // Set the I2C address
-    i2c_data.address = display_config.i2c_address;
     
     // Set font size
     display_set_font(DISPLAY_FONT_SMALL);
@@ -817,9 +816,9 @@ bool display_init(void) {
     if (display_config.pages == 0) {
         display_config.pages = (display_config.height + 7) / 8; 
     }
-    
+    i2c_cap_t cap = i2c_start();
     // Check if display is connected
-    if ( i2c_probe(display_config.i2c_address)) {
+    if (cap.started && i2c_probe(display_config.i2c_address)) {
         disp_connected = true;
         // Send initialization sequence
         for (uint8_t i = 0; i < display_config.init_sequence_length; i++) {
@@ -871,5 +870,8 @@ bool display_connected(){
     return disp_connected;
 }
 
+const char * display_name(void){
+    return display_config.name;
+}
 
 #endif //DISPLAY_ENABLE == PLUGIN_OLED_DISPLAY

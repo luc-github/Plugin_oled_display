@@ -59,6 +59,7 @@ static const uint8_t sh1106_init_sequence[] = {
 
 // Set default display configuration
 display_config_t display_config = {
+  .name = "SH1106 I2C",
   .i2c_address = 0x3C,
   .width = 128,
   .height = 64,
