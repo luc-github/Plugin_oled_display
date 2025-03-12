@@ -16,34 +16,16 @@ grblHAL plugin for oled display - this is still a work in progress - be patient
 ### 6 Axis
 <img src="https://raw.githubusercontent.com/luc-github/Plugin_oled_display/refs/heads/main/pictures/6axis.jpg" alt="drawing" width="200"/>
 
-### Installation
-
-* Add in plugins_init.h
-
-```
-#if DISPLAY_ENABLE == PLUGIN_OLED_DISPLAY
-    extern bool plugin_oled_display_init (void);
-    plugin_oled_display_init();
-#endif
-```
+### Manual Installation
 
 * In my_machine.h
 
-`#define DISPLAY_ENABLE 33 //PLUGIN_OLED_DISPLAY`
+`#define DISPLAY_ENABLE 33 //DISPLAY_PLUGIN_1`
 then
-`#define DISPLAY_TYPE 1 //DISPLAY_SSD1306_I2C`
+`#define DISPLAY_DRIVER 1 //DISPLAY_DRIVER_SH1106`
 or 
-`#define DISPLAY_TYPE 3 //DISPLAY_SH1106_I2C`
+`#define DISPLAY_DRIVER 2 //DISPLAY_DRIVER_SSD1306`
 
-Note: Be sure in plugins.h there is :
-
-```
-#define PLUGIN_OLED_DISPLAY     ((1<<5)|DISPLAY_I2C) //!< 33
-
-// OLED Display
-#define DISPLAY_SSD1306_I2C     ((1<<0)|DISPLAY_I2C) //!< 1
-#define DISPLAY_SH1106_I2C      ((1<<1)|DISPLAY_I2C) //!< 3
-```
 * Copy plugin repository to  main 
 
 ESP32/main/plugin_oled_display

@@ -38,21 +38,21 @@
 #endif //ARDUINO
 #include "grbl/report.h"
 
-#if DISPLAY_ENABLE == PLUGIN_OLED_DISPLAY
+#if DISPLAY_ENABLE == 33
 #include "oled_display.h"
 
-#ifndef DISPLAY_TYPE
-#define DISPLAY_TYPE DISPLAY_SH1106_I2C
-#endif //DISPLAY_TYPE 
+#ifndef DISPLAY_DRIVER
+#define DISPLAY_DRIVER DISPLAY_DRIVER_SH1106
+#endif //DISPLAY_DRIVER 
 
 // Include configuration for display type
-#if DISPLAY_TYPE == DISPLAY_SSD1306_I2C
+#if DISPLAY_DRIVER == DISPLAY_DRIVER_SSD1306
 #include "ssd1306_i2c.h"
-#endif //DISPLAY_TYPE == DISPLAY_SSD1306_I2C
+#endif //DISPLAY_DRIVER == DISPLAY_DRIVER_SSD1306
 
-#if DISPLAY_TYPE == DISPLAY_SH1106_I2C
+#if DISPLAY_DRIVER == DISPLAY_DRIVER_SH1106
 #include "sh1106_i2c.h"
-#endif //DISPLAY_TYPE == DISPLAY_SH1106_I2C
+#endif //DISPLAY_DRIVER == DISPLAY_DRIVER_SH1106
 
 // --------------------------------------------------------
 // Types and Constants
@@ -144,8 +144,6 @@ static bool display_send_command(uint8_t command) {
     i2c_data.count = 1;
     i2c_data.data = &command;
     i2c_data.cmd = display_config.command_head;
-    // Set the I2C address
-    i2c_data.address = display_config.i2c_address;
     return i2c_transfer(&i2c_data, false);
 }
 
@@ -155,8 +153,6 @@ static bool display_send_data(  uint8_t* data, size_t size) {
     i2c_data.count = size;
     i2c_data.data = data;
     i2c_data.cmd = display_config.data_head;
-    // Set the I2C address
-    i2c_data.address = display_config.i2c_address;
     return i2c_transfer(&i2c_data, false);
 }
 
@@ -806,8 +802,11 @@ bool display_clear_immediate(void) {
 /**
  * Initialize the display hardware
  */
-bool display_init(void) {
+bool display_oled_init(void) {
     bool success = true;
+
+    // Set the I2C address
+    i2c_data.address = display_config.i2c_address;
     
     // Set font size
     display_set_font(DISPLAY_FONT_SMALL);
@@ -874,4 +873,4 @@ const char * display_name(void){
     return display_config.name;
 }
 
-#endif //DISPLAY_ENABLE == PLUGIN_OLED_DISPLAY
+#endif //DISPLAY_ENABLE == 33

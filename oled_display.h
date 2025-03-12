@@ -75,7 +75,7 @@ extern display_config_t display_config;
 // --------------------------------------------------------
 // Function Prototypes to export
 // --------------------------------------------------------
-bool display_init(void);
+bool display_oled_init(void);
 void display_set_color(display_color_t color);
 void display_set_pixel(int16_t x, int16_t y);
 void display_set_font(display_font_size_t font_size);

@@ -25,15 +25,18 @@
 #include "../grbl/hal.h"
 #include "../grbl/task.h"
 #include "../grbl/system.h"
+#include "../grbl/plugins.h"
+
 #else
 #include "driver.h"
 #include "grbl/hal.h"
 #include "grbl/task.h"
 #include "grbl/system.h"
+#include "grbl/plugins.h"
 #endif //ARDUINO
 
 
-#if DISPLAY_ENABLE == PLUGIN_OLED_DISPLAY
+#if DISPLAY_ENABLE == 33
 
 // Include according to the display type
 #include "oled_display.h"
@@ -336,7 +339,7 @@ for (uint8_t i = 0; i < N_AXIS; i++) {
 /**
  * Initialize the OLED display plugin
  */
-void plugin_oled_display_init(void) {
+void display_init(void) {
     // Initialize screen data
     screen1.state = "IDLE";
 #if ETHERNET_ENABLE || WIFI_ENABLE
@@ -358,7 +361,7 @@ void plugin_oled_display_init(void) {
     grbl.on_report_options = report_options;
     
     // Initialize hardware display
-    if (display_init()) {
+    if (display_oled_init()) {
         // Hook state change
         on_state_change = grbl.on_state_change;
         grbl.on_state_change = onStateChanged;
@@ -375,4 +378,4 @@ void plugin_oled_display_init(void) {
     }
 }
 
-#endif //PLUGIN_OLED_DISPLAY_ENABLE
+#endif //DISPLAY_ENABLE == 33
