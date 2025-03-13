@@ -26,7 +26,7 @@ I fyou do manual compilation:
 
 * In my_machine.h
 
-`#define DISPLAY_ENABLE 33 //DISPLAY_PLUGIN_1`   
+`#define DISPLAY_ENABLE 33 //DISPLAY_I2C_OLED_1 `   
 then    
 `#define DISPLAY_DRIVER 1 //DISPLAY_DRIVER_SH1106`   
 or    
