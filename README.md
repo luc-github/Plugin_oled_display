@@ -1,5 +1,6 @@
-# Plugin_oled_display
-grblHAL plugin for oled display - this is still a work in progress - be patient
+# grblHAL Plugin for oled display
+
+Currently only ssd1306 and equivalent (e.g: ssd1315) and sh1106 are supported with a resolution of 128 x 64 pixels.
 
 ### Boot
 <img src="https://raw.githubusercontent.com/luc-github/Plugin_oled_display/refs/heads/main/pictures/boot.jpg" alt="drawing" width="200"/>
@@ -16,15 +17,20 @@ grblHAL plugin for oled display - this is still a work in progress - be patient
 ### 6 Axis
 <img src="https://raw.githubusercontent.com/luc-github/Plugin_oled_display/refs/heads/main/pictures/6axis.jpg" alt="drawing" width="200"/>
 
+### Using grblHAL Web Builder
+
+The plugin is already part of grblHAL so just select it in 3rd party plugin
+
 ### Manual Installation
+I fyou do manual compilation:
 
 * In my_machine.h
 
-`#define DISPLAY_ENABLE 33 //DISPLAY_PLUGIN_1`
-then
-`#define DISPLAY_DRIVER 1 //DISPLAY_DRIVER_SH1106`
-or 
-`#define DISPLAY_DRIVER 2 //DISPLAY_DRIVER_SSD1306`
+`#define DISPLAY_ENABLE 33 //DISPLAY_PLUGIN_1`   
+then    
+`#define DISPLAY_DRIVER 1 //DISPLAY_DRIVER_SH1106`   
+or    
+`#define DISPLAY_DRIVER 2 //DISPLAY_DRIVER_SSD1306`   
 
 * Copy plugin repository to  main 
 
@@ -89,7 +95,9 @@ list (APPEND SRCS ${PLUGIN_OLED_DISPLAY_SOURCE})
 
 ### Tools
 
+Some tools are available if you want to do more customization - only usable with manual installation.    
+
 1. **Font Converter** (`font_converter.py`) - Converts TrueType fonts to OLED-compatible bitmap font arrays
-2. **PNG Converter** (`png_converter.py`) - Converts PNG images to XBM format for OLED display
+2. **PNG Converter** (`png_converter.py`) - Converts PNG images to XBM format for OLED display, if you want to change boot screen for example.
 3. **Font Metrics Extractor** (`ttf_info_extractor.py`) - Advanced tool for analyzing font metrics and diagnosing rendering issues
 4. **Font Generator** (`font_generator.py`) - Create custom bitmap fonts by editing pixel-perfect templates
