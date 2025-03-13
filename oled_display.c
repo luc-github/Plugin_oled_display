@@ -21,21 +21,11 @@
 
 */
 
-
-
-#ifdef ARDUINO
-#include "../driver.h"
-#include "../grbl/hal.h"
-#include "../grbl/task.h"
-#include "../grbl/system.h"
-#include "../grbl/plugins.h"
-#else
 #include "driver.h"
 #include "grbl/hal.h"
 #include "grbl/task.h"
 #include "grbl/system.h"
 #include "grbl/plugins.h"
-#endif //ARDUINO
 #include "grbl/report.h"
 
 #if DISPLAY_ENABLE == 33

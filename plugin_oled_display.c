@@ -20,21 +20,11 @@
   along with grblHAL. If not, see <http://www.gnu.org/licenses/>.
 
 */
-#ifdef ARDUINO
-#include "../driver.h"
-#include "../grbl/hal.h"
-#include "../grbl/task.h"
-#include "../grbl/system.h"
-#include "../grbl/plugins.h"
-
-#else
 #include "driver.h"
 #include "grbl/hal.h"
 #include "grbl/task.h"
 #include "grbl/system.h"
 #include "grbl/plugins.h"
-#endif //ARDUINO
-
 
 #if DISPLAY_ENABLE == 33
 
