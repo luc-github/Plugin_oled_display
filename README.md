@@ -31,6 +31,8 @@ then
 `#define DISPLAY_DRIVER 1 //DISPLAY_DRIVER_SH1106`   
 or    
 `#define DISPLAY_DRIVER 2 //DISPLAY_DRIVER_SSD1306`   
+and    
+`#define I2C_ENABLE 1`   
 
 * Copy plugin repository to  main 
 
